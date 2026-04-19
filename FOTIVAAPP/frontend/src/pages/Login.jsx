@@ -30,7 +30,6 @@ export default function Login() {
         {/* Logo Fotiva real */}
         <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:14, marginBottom:32 }}>
           <img src={ICONE_SRC} alt="Fotiva icone" style={{ width:88, height:88, objectFit:'contain', borderRadius:20 }}/>
-          <img src={LOGO_SRC}  alt="Fotiva logo"  style={{ height:36, objectFit:'contain' }}/>
         </div>
 
         <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.07)', borderRadius:20, padding:32 }}>
