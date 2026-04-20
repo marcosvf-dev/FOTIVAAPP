@@ -39,7 +39,7 @@ export default function Layout({ children }) {
     <aside style={{ ...sidebarBase, transform: open || window.innerWidth >= 1024 ? 'translateX(0)' : 'translateX(-100%)' }}>
       {/* Logo Fotiva */}
       <div style={{ padding: '14px 16px', borderBottom: '10px solid rgba(255,255,255,0.05)', background: '#060606', display: 'flex', alignItems: 'center' }}>
-        <img src={LOGO_SRC} alt="Fotiva" style={{ height: 32, objectFit: 'contain' }}/>
+        <img src={LOGO_SRC} alt="Fotiva" style={{ height: 48, objectFit: 'contain' }}/>
       </div>
 
       {/* Nav */}
