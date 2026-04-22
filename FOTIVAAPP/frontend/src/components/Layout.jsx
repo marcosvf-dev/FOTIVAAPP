@@ -38,7 +38,7 @@ export default function Layout({ children }) {
   const Sidebar = () => (
     <aside style={{ ...sidebarBase, transform: open || window.innerWidth >= 1024 ? 'translateX(0)' : 'translateX(-100%)' }}>
       {/* Logo Fotiva */}
-      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#060606', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 10px', minHeight: 72 }}>
+      <div style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#060606', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '8px 10px', minHeight: 50 }}>
         <img src={LOGO_SRC} alt="Fotiva" style={{ width: '100%', maxWidth: 200, objectFit: 'contain' }}/>
       </div>
 
