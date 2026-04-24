@@ -1,34 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, User, Phone, Mail, Edit2, Trash2, X, Save } from 'lucide-react';
+import { Plus, Search, User, Phone, Mail, Edit2, Trash2, X, Save, MapPin, Hash, FileText, ChevronDown, ChevronUp } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 
+const OR = '#E87722';
+const inp = (extra={}) => ({ width:'100%', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 13px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit', ...extra });
+const lbl = { display:'block', fontSize:10, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:.5, marginBottom:5 };
+
+function fmtCPF(v='') { return v.replace(/\D/g,'').slice(0,11).replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4'); }
+function fmtPhone(v='') { return v.replace(/\D/g,'').slice(0,11).replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{4,5})(\d{4})$/,'$1-$2'); }
+
+const EMPTY_EDIT = { name:'', phone:'', email:'', cpf:'', address:'', city:'', state:'', complement:'', notes:'' };
+
 export default function Clientes() {
   const navigate = useNavigate();
-  const [clientes, setClientes] = useState([]);
-  const [loading,  setLoading]  = useState(true);
-  const [search,   setSearch]   = useState('');
-  const [editing,  setEditing]  = useState(null);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', email: '' });
-  const [saving,   setSaving]   = useState(false);
+  const [clientes,  setClientes]  = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [search,    setSearch]    = useState('');
+  const [editing,   setEditing]   = useState(null);
+  const [editForm,  setEditForm]  = useState(EMPTY_EDIT);
+  const [saving,    setSaving]    = useState(false);
+  const [expanded,  setExpanded]  = useState(null);
 
-  const fetch = async () => {
+  const load = useCallback(async () => {
     try { const r = await api.get('/api/clients'); setClientes(r.data); }
     catch { toast.error('Erro ao carregar clientes'); }
     finally { setLoading(false); }
-  };
+  }, []);
 
-  useEffect(() => { fetch(); }, []);
+  useEffect(() => { load(); }, [load]);
 
   const filtered = clientes.filter(c =>
     c.name.toLowerCase().includes(search.toLowerCase()) ||
     c.email?.toLowerCase().includes(search.toLowerCase()) ||
-    c.phone?.includes(search)
+    c.phone?.includes(search) ||
+    c.cpf?.includes(search)
   );
 
-  const startEdit = (c) => { setEditing(c); setEditForm({ name: c.name, phone: c.phone || '', email: c.email || '' }); };
+  const startEdit = (c) => {
+    setEditing(c);
+    setEditForm({ name:c.name||'', phone:c.phone||'', email:c.email||'', cpf:c.cpf||'', address:c.address||'', city:c.city||'', state:c.state||'', complement:c.complement||'', notes:c.notes||'' });
+  };
 
   const saveEdit = async () => {
     if (!editForm.name.trim()) { toast.error('Nome obrigatório'); return; }
@@ -37,105 +51,202 @@ export default function Clientes() {
       await api.put(`/api/clients/${editing._id}`, editForm);
       toast.success('Cliente atualizado!');
       setEditing(null);
-      fetch();
+      load();
     } catch { toast.error('Erro ao salvar'); }
     finally { setSaving(false); }
   };
 
   const remove = async (id, name) => {
     if (!window.confirm(`Excluir "${name}"?`)) return;
-    try { await api.delete(`/api/clients/${id}`); toast.success('Cliente removido'); fetch(); }
+    try { await api.delete(`/api/clients/${id}`); toast.success('Cliente removido'); load(); }
     catch { toast.error('Erro ao remover'); }
   };
 
-  const cardStyle = { background: '#111', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 14, padding: '16px 18px', transition: 'all .15s' };
+  const sendWhats = (c) => {
+    const phone = c.phone?.replace(/\D/g,'');
+    if (!phone) { toast.error('Cliente sem telefone cadastrado'); return; }
+    window.open(`https://wa.me/55${phone}`, '_blank');
+  };
+
+  const initials = (name='') => name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+  const colors   = ['#E87722','#3B82F6','#22C55E','#A855F7','#EC4899','#14B8A6'];
+  const colorFor = (name='') => colors[name.charCodeAt(0) % colors.length];
 
   return (
     <Layout>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
-        <div>
-          <h1 style={{ color: '#fff', fontSize: 24, fontWeight: 800, letterSpacing: '-0.4px' }}>Clientes</h1>
-          <p style={{ color: '#555', fontSize: 13, marginTop: 4 }}>Gerencie sua carteira de clientes</p>
-        </div>
-        <button className="f-btn f-btn-primary" onClick={() => navigate('/clientes/novo', { state: { fromClientes: true } })} style={{ gap: 8 }}>
-          <Plus size={16} /> Novo Cliente
-        </button>
-      </div>
+      <div style={{ maxWidth:900, margin:'0 auto' }}>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12, marginBottom: 20 }}>
-        {[['Total', clientes.length, '#E87722'], ['Com Email', clientes.filter(c=>c.email).length, '#3B82F6'], ['Com Telefone', clientes.filter(c=>c.phone).length, '#22C55E']].map(([l,v,c]) => (
-          <div key={l} style={cardStyle}>
-            <div style={{ color: '#555', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>{l}</div>
-            <div style={{ color: c, fontSize: 28, fontWeight: 800, marginTop: 4 }}>{v}</div>
+        {/* Header */}
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, flexWrap:'wrap', gap:12 }}>
+          <div>
+            <h1 style={{ color:'#fff', fontSize:22, fontWeight:800, margin:0 }}>Clientes</h1>
+            <p style={{ color:'#555', fontSize:13, marginTop:4 }}>{clientes.length} cliente{clientes.length!==1?'s':''} cadastrado{clientes.length!==1?'s':''}</p>
           </div>
-        ))}
-      </div>
-
-      {/* Search */}
-      <div style={{ position: 'relative', marginBottom: 16 }}>
-        <Search size={15} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: '#444' }} />
-        <input className="f-input" value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="Buscar por nome, email ou telefone..." style={{ paddingLeft: 38 }} />
-      </div>
-
-      {/* List */}
-      {loading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[1,2,3].map(i => <div key={i} style={{ height: 76, background: '#111', borderRadius: 14, animation: 'pulse 1.5s infinite' }} />)}
+          <button onClick={() => navigate('/clientes/novo')}
+            style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 20px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+            <Plus size={15}/> Novo Cliente
+          </button>
         </div>
-      ) : !filtered.length ? (
-        <div style={{ textAlign: 'center', padding: '52px 0' }}>
-          <User size={44} color="#222" style={{ margin: '0 auto 14px', display: 'block' }} />
-          <p style={{ color: '#444', fontSize: 15 }}>{search ? 'Nenhum cliente encontrado' : 'Nenhum cliente ainda'}</p>
-          {!search && <button className="f-btn f-btn-primary" onClick={() => navigate('/clientes/novo')} style={{ marginTop: 16 }}><Plus size={15} /> Adicionar cliente</button>}
+
+        {/* Search */}
+        <div style={{ position:'relative', marginBottom:20 }}>
+          <Search size={15} style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:'#444' }}/>
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Buscar por nome, email, telefone ou CPF..."
+            style={{ ...inp({ paddingLeft:38, fontSize:14, padding:'12px 14px 12px 38px' }), border:'1px solid rgba(255,255,255,.07)' }}/>
         </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtered.map(c => (
-            <div key={c._id} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14 }}
-              onMouseEnter={e => e.currentTarget.style.borderColor = 'rgba(232,119,34,0.2)'}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'rgba(255,255,255,0.06)'}>
-              <div style={{ width: 42, height: 42, background: 'linear-gradient(135deg,#E87722,#C85A00)', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontWeight: 700, color: '#fff', fontSize: 15 }}>
-                {c.name.charAt(0).toUpperCase()}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ color: '#e0e0e0', fontWeight: 600, fontSize: 14 }}>{c.name}</div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 3, flexWrap: 'wrap' }}>
-                  {c.email && <span style={{ color: '#555', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><Mail size={11} />{c.email}</span>}
-                  {c.phone && <span style={{ color: '#555', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}><Phone size={11} />{c.phone}</span>}
+
+        {/* Lista */}
+        {loading ? (
+          <div style={{ textAlign:'center', padding:'48px', color:'#555' }}>Carregando...</div>
+        ) : !filtered.length ? (
+          <div style={{ textAlign:'center', padding:'48px', color:'#555' }}>
+            {search ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado ainda'}
+          </div>
+        ) : (
+          <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+            {filtered.map(c => {
+              const isExpanded = expanded === c._id;
+              const color = colorFor(c.name);
+              return (
+                <div key={c._id} style={{ background:'#0f0f14', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, overflow:'hidden', transition:'all .2s' }}>
+                  {/* Main row */}
+                  <div style={{ display:'flex', alignItems:'center', gap:14, padding:'14px 18px' }}>
+                    {/* Avatar */}
+                    <div style={{ width:42, height:42, borderRadius:'50%', background:`${color}22`, border:`2px solid ${color}44`, display:'flex', alignItems:'center', justifyContent:'center', color, fontWeight:800, fontSize:14, flexShrink:0 }}>
+                      {initials(c.name)}
+                    </div>
+
+                    {/* Info */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ color:'#fff', fontWeight:700, fontSize:14, marginBottom:3 }}>{c.name}</div>
+                      <div style={{ display:'flex', gap:14, flexWrap:'wrap' }}>
+                        {c.phone && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Phone size={10}/>{c.phone}</span>}
+                        {c.email && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Mail size={10}/>{c.email}</span>}
+                        {c.cpf   && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Hash size={10}/>{c.cpf}</span>}
+                        {c.city  && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><MapPin size={10}/>{c.city}{c.state?`/${c.state}`:''}</span>}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
+                      {c.phone && (
+                        <button onClick={() => sendWhats(c)} title="WhatsApp"
+                          style={{ width:32, height:32, borderRadius:8, background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.2)', color:'#25D366', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:14 }}>
+                          💬
+                        </button>
+                      )}
+                      <button onClick={() => startEdit(c)} title="Editar"
+                        style={{ width:32, height:32, borderRadius:8, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <Edit2 size={13}/>
+                      </button>
+                      <button onClick={() => remove(c._id, c.name)} title="Excluir"
+                        style={{ width:32, height:32, borderRadius:8, background:'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.15)', color:'#EF4444', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <Trash2 size={13}/>
+                      </button>
+                      <button onClick={() => setExpanded(isExpanded ? null : c._id)}
+                        style={{ width:32, height:32, borderRadius:8, background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.06)', color:'#555', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        {isExpanded ? <ChevronUp size={13}/> : <ChevronDown size={13}/>}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded details */}
+                  {isExpanded && (
+                    <div style={{ borderTop:'1px solid rgba(255,255,255,.05)', padding:'14px 18px', background:'rgba(255,255,255,.02)', display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:12 }}>
+                      {[
+                        ['CPF', c.cpf, Hash],
+                        ['Telefone', c.phone, Phone],
+                        ['Email', c.email, Mail],
+                        ['Endereço', c.address, MapPin],
+                        ['Cidade', c.city ? `${c.city}${c.state?'/'+c.state:''}` : '', MapPin],
+                        ['Complemento', c.complement, MapPin],
+                      ].map(([label, value, Icon]) => value ? (
+                        <div key={label}>
+                          <div style={{ color:'#444', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:3 }}>{label}</div>
+                          <div style={{ color:'#ccc', fontSize:13 }}>{value}</div>
+                        </div>
+                      ) : null)}
+                      {c.notes && (
+                        <div style={{ gridColumn:'1/-1' }}>
+                          <div style={{ color:'#444', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:3 }}>Observações</div>
+                          <div style={{ color:'#888', fontSize:13, lineHeight:1.6 }}>{c.notes}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
-              </div>
-              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                <button onClick={() => startEdit(c)} style={{ padding: 8, background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, color: '#3B82F6', cursor: 'pointer', display: 'flex' }}><Edit2 size={14} /></button>
-                <button onClick={() => remove(c._id, c.name)} style={{ padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', display: 'flex' }}><Trash2 size={14} /></button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {/* Edit Modal */}
+      {/* Modal de edição */}
       {editing && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(6px)' }}>
-          <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, padding: 28, width: '100%', maxWidth: 420 }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-              <h2 style={{ color: '#fff', fontSize: 18, fontWeight: 700 }}>Editar Cliente</h2>
-              <button onClick={() => setEditing(null)} style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer' }}><X size={20} /></button>
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
+          <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:500, maxHeight:'90vh', overflowY:'auto' }}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <h2 style={{ color:'#fff', fontSize:16, fontWeight:800, margin:0 }}>Editar — {editing.name}</h2>
+              <button onClick={() => setEditing(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555' }}><X size={20}/></button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {[['name','Nome','text'],['phone','Telefone','tel'],['email','Email','email']].map(([k,l,t]) => (
-                <div key={k}>
-                  <label className="f-label">{l}</label>
-                  <input className="f-input" type={t} value={editForm[k]}
-                    onChange={e => setEditForm(p => ({...p, [k]: e.target.value}))} />
-                </div>
-              ))}
+
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+              {/* Nome */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={lbl}>Nome *</label>
+                <input value={editForm.name} onChange={e => setEditForm(f=>({...f,name:e.target.value}))} style={inp()} placeholder="Nome completo"/>
+              </div>
+              {/* CPF */}
+              <div>
+                <label style={lbl}>CPF</label>
+                <input value={editForm.cpf} onChange={e => setEditForm(f=>({...f,cpf:fmtCPF(e.target.value)}))} style={inp()} placeholder="000.000.000-00"/>
+              </div>
+              {/* Telefone */}
+              <div>
+                <label style={lbl}>Telefone</label>
+                <input value={editForm.phone} onChange={e => setEditForm(f=>({...f,phone:fmtPhone(e.target.value)}))} style={inp()} placeholder="(37) 99999-0000"/>
+              </div>
+              {/* Email */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={lbl}>Email</label>
+                <input type="email" value={editForm.email} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inp()} placeholder="email@exemplo.com"/>
+              </div>
+              {/* Endereço */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={lbl}>Endereço</label>
+                <input value={editForm.address} onChange={e => setEditForm(f=>({...f,address:e.target.value}))} style={inp()} placeholder="Rua, número"/>
+              </div>
+              {/* Cidade + Estado */}
+              <div>
+                <label style={lbl}>Cidade</label>
+                <input value={editForm.city} onChange={e => setEditForm(f=>({...f,city:e.target.value}))} style={inp()} placeholder="Divinópolis"/>
+              </div>
+              <div>
+                <label style={lbl}>UF</label>
+                <input value={editForm.state||''} onChange={e => setEditForm(f=>({...f,state:e.target.value.toUpperCase().slice(0,2)}))} style={inp()} placeholder="MG" maxLength={2}/>
+              </div>
+              {/* Complemento */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={lbl}>Complemento</label>
+                <input value={editForm.complement} onChange={e => setEditForm(f=>({...f,complement:e.target.value}))} style={inp()} placeholder="Apto, bloco..."/>
+              </div>
+              {/* Notas */}
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={lbl}>Observações</label>
+                <textarea value={editForm.notes} onChange={e => setEditForm(f=>({...f,notes:e.target.value}))} rows={3}
+                  style={{ ...inp(), resize:'vertical', lineHeight:1.6 }} placeholder="Notas sobre o cliente..."/>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 22 }}>
-              <button className="f-btn f-btn-ghost" onClick={() => setEditing(null)} style={{ flex: 1 }}>Cancelar</button>
-              <button className="f-btn f-btn-primary" onClick={saveEdit} disabled={saving} style={{ flex: 1 }}>
-                {saving ? <><div className="spinner" style={{ width: 16, height: 16 }} /> Salvando...</> : <><Save size={15} /> Salvar</>}
+
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button onClick={() => setEditing(null)}
+                style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={saveEdit} disabled={saving}
+                style={{ flex:2, padding:'11px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:7, opacity:saving?.6:1 }}>
+                <Save size={14}/> {saving ? 'Salvando...' : 'Salvar alterações'}
               </button>
             </div>
           </div>
