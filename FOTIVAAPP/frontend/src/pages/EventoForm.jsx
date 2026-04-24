@@ -15,7 +15,7 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
   const [form, setForm] = useState({
     clientId: '', clientName: '', eventType: '', eventDate: '', eventTime: '09:00',
     location: '', status: 'confirmado', totalValue: '', amountPaid: '0',
-    installments: '1', paymentType: 'pix', notes: '', ...initialData
+    installments: '1', paymentType: 'pix', dueDay: '', firstDueDate: '', notes: '', ...initialData
   });
 
   useEffect(() => {
@@ -32,6 +32,8 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
       totalValue: parseFloat(form.totalValue) || 0,
       amountPaid: parseFloat(form.amountPaid) || 0,
       installments: parseInt(form.installments) || 1,
+      dueDay: parseInt(form.dueDay) || null,
+      firstDueDate: form.firstDueDate || null,
     };
     delete payload.eventTime;
     onSubmit(payload);
@@ -154,9 +156,25 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
               <div>
                 <label style={labelStyle}>Parcelas</label>
                 <select value={form.installments} onChange={e => set('installments', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }} onFocus={onFocus} onBlur={onBlur}>
-                  {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => <option key={n} value={n}>{n}x{n > 1 ? ` (R$${(remaining/n).toFixed(2)})` : ` — sem parcelas`}</option>)}
+                  {[1,2,3,4,5,6,7,8,9,10,11,12,24,36,48].map(n => <option key={n} value={n}>{n}x{n > 1 ? ` (R$${(remaining/n).toFixed(2)})` : ` — sem parcelas`}</option>)}
                 </select>
               </div>
+              {parseInt(form.installments) > 1 && (
+                <div style={{ gridColumn: '1/-1', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>
+                    <label style={labelStyle}>Data da 1ª parcela</label>
+                    <input style={inputStyle} type="date" value={form.firstDueDate}
+                      onChange={e => set('firstDueDate', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                    <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Demais parcelas: mesmo dia nos meses seguintes</div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Dia do vencimento (mensal)</label>
+                    <input style={inputStyle} type="number" min="1" max="31" placeholder="Ex: 10"
+                      value={form.dueDay} onChange={e => set('dueDay', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                    <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Dia fixo todo mês para vencer</div>
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={labelStyle}>Forma de pagamento</label>
                 <select value={form.paymentType} onChange={e => set('paymentType', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }} onFocus={onFocus} onBlur={onBlur}>
@@ -227,6 +245,8 @@ export function EditarEvento() {
         totalValue: ev.totalValue?.toString() || '',
         amountPaid: ev.amountPaid?.toString() || '0',
         installments: ev.installments?.toString() || '1',
+        dueDay: ev.dueDay?.toString() || '',
+        firstDueDate: ev.firstDueDate ? ev.firstDueDate.split('T')[0] : '',
       });
     }).catch(() => { toast.error('Evento não encontrado'); navigate('/eventos'); });
   }, [id]);
