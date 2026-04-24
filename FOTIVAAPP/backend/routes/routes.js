@@ -14,6 +14,11 @@ clientRouter.post('/', require('../middleware/auth').checkClientLimit, async (re
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
   res.status(201).json(await Client.create({ userId: req.user._id, name, phone, email, notes }));
 });
+clientRouter.get('/:id', async (req, res) => {
+  const c = await Client.findOne({ _id: req.params.id, userId: req.user._id });
+  if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
+  res.json(c);
+});
 clientRouter.put('/:id', async (req, res) => {
   const c = await Client.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, req.body, { new: true });
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
@@ -51,11 +56,19 @@ eventRouter.post('/', async (req, res) => {
   if (!clientId) return res.status(400).json({ error: 'Cliente obrigatório' });
   if (!eventType) return res.status(400).json({ error: 'Tipo obrigatório' });
 
-  res.status(201).json(await Event.create({
+  const { dueDay, firstDueDate } = req.body;
+  const event = await Event.create({
     userId: req.user._id, clientId, clientName, eventType, eventDate,
     location, status, totalValue: totalValue || 0, amountPaid: amountPaid || 0,
-    installments: installments || 1, paymentType: paymentType || 'pix', notes,
-  }));
+    installments: installments || 1, paymentType: paymentType || 'pix',
+    dueDay: dueDay || null, firstDueDate: firstDueDate || null, notes,
+  });
+  // Gera parcelas automáticas
+  if (event.installments > 1 && (event.dueDay || event.firstDueDate)) {
+    event.installmentList = gerarParcelas(event);
+    await event.save();
+  }
+  res.status(201).json(event);
 });
 eventRouter.put('/:id', async (req, res) => {
   const e = await Event.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, req.body, { new: true });
