@@ -1,3 +1,4 @@
+import Layout from '../components/Layout';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
@@ -124,9 +125,10 @@ export default function Galerias() {
   );
 
   return (
-    <div style={{ padding:'28px 24px', maxWidth:1100, margin:'0 auto' }}>
+    <Layout>
+    <div style={{ maxWidth:1100, margin:'0 auto' }}>
       {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28 }}>
+      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, flexWrap:'wrap', gap:12 }}>
         <div>
           <h1 style={{ fontSize:22, fontWeight:800, color:'#fff', margin:0 }}>Galerias de Fotos</h1>
           <p style={{ color:'#555', fontSize:13, marginTop:4 }}>Crie galerias e deixe seus clientes escolherem as fotos</p>
@@ -194,7 +196,9 @@ export default function Galerias() {
         </div>
       )}
 
-      {/* Modal: Criar galeria */}
+      </div>
+
+      {/* Modal: Criar galeria */
       {modal === 'create' && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:20 }}>
           <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:32, width:'100%', maxWidth:460 }}>
@@ -387,5 +391,6 @@ export default function Galerias() {
 
       <style>{`@keyframes spin { from { transform:rotate(0deg) } to { transform:rotate(360deg) } }`}</style>
     </div>
+    </Layout>
   );
 }
