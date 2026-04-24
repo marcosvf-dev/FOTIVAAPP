@@ -42,6 +42,7 @@ app.use('/api/subscription',require('./routes/subscription'));
 app.use('/api/webhook',     require('./routes/webhook'));
 app.use('/api/admin',       require('./routes/admin'));
 app.use('/api/coupons',     require('./routes/coupons'));
+app.use('/api/installments', require('./routes/installments'));
 app.use('/api/gallery',     require('./routes/gallery'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0.0', time: new Date() }));
