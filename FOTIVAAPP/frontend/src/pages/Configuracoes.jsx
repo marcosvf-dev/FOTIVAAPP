@@ -10,7 +10,7 @@ export default function Configuracoes() {
   const [tab,          setTab]          = useState('perfil');
   const [loading,      setLoading]      = useState(false);
   const [form,         setForm]         = useState({ name:'', studioName:'', phone:'', email:'', profileImage:'' });
-  const [pushActive,   setPushActive]   = useState(false);
+  const [pushActive,   setPushActive]   = useState(() => localStorage.getItem('push_active') === 'true');
   const [notifStatus,  setNotifStatus]  = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [notifLoading, setNotifLoading] = useState(false);
 
@@ -22,10 +22,28 @@ export default function Configuracoes() {
   }, [user]);
 
   useEffect(() => {
-    if ('serviceWorker' in navigator && typeof Notification !== 'undefined') {
-      setNotifStatus(Notification.permission);
+    // Restaura estado do localStorage primeiro
+    const saved = localStorage.getItem('push_active') === 'true';
+    const savedPerm = localStorage.getItem('push_permission') || 'default';
+    if (saved) setPushActive(true);
+    if (typeof Notification !== 'undefined') {
+      const perm = Notification.permission;
+      setNotifStatus(perm);
+      localStorage.setItem('push_permission', perm);
+      // Se permissão foi revogada, limpa
+      if (perm !== 'granted' && saved) {
+        setPushActive(false);
+        localStorage.removeItem('push_active');
+      }
+    } else if (savedPerm === 'granted' && saved) {
+      setNotifStatus('granted');
+    }
+    // Verifica subscription real se suportado
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
       navigator.serviceWorker.ready.then(reg => {
-        reg.pushManager.getSubscription().then(sub => setPushActive(!!sub));
+        reg.pushManager.getSubscription().then(sub => {
+          if (sub) { setPushActive(true); localStorage.setItem('push_active','true'); }
+        });
       }).catch(() => {});
     }
   }, []);
@@ -52,6 +70,8 @@ export default function Configuracoes() {
         } catch {}
       }
       setPushActive(true);
+      localStorage.setItem('push_active', 'true');
+      localStorage.setItem('push_permission', 'granted');
       toast.success('Notificações ativadas!');
     } catch (e) { toast.error('Erro ao ativar: ' + e.message); }
     finally { setNotifLoading(false); }
@@ -67,6 +87,8 @@ export default function Configuracoes() {
       }
       await api.post('/api/push/unsubscribe').catch(() => {});
       setPushActive(false);
+      localStorage.removeItem('push_active');
+      localStorage.setItem('push_permission', 'default');
       toast.success('Notificações desativadas!');
     } catch { toast.error('Erro ao desativar'); }
     finally { setNotifLoading(false); }
