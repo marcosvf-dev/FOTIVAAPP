@@ -4,12 +4,14 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Calendar, Edit2, Trash2, MapPin, DollarSign } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
+import Contrato from '../components/Contrato';
 
 const STATUS = { confirmado: ['#22C55E','rgba(34,197,94,0.15)'], pendente: ['#E87722','rgba(232,119,34,0.15)'], cancelado: ['#ef4444','rgba(239,68,68,0.15)'], concluido: ['#3B82F6','rgba(59,130,246,0.15)'] };
 
 export default function Eventos() {
   const navigate = useNavigate();
   const [eventos, setEventos] = useState([]);
+  const [contratoId, setContratoId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
   const [filter,  setFilter]  = useState('todos');
@@ -124,12 +126,18 @@ export default function Eventos() {
                     style={{ padding: 8, background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: 8, color: '#ef4444', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
                     <Trash2 size={14} />
                   </button>
+                  <button
+                    onClick={e => { e.stopPropagation(); setContratoId(ev._id); }}
+                    style={{ background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.15)', color:'#22C55E', borderRadius:8, padding:'6px 12px', fontSize:12, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:5, fontFamily:'inherit', flexShrink:0, whiteSpace:'nowrap' }}>
+                    📄 Contrato
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       )}
+          {contratoId && <Contrato eventoId={contratoId} onClose={() => setContratoId(null)}/>}
     </Layout>
   );
 }
