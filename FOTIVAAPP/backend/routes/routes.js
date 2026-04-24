@@ -1,3 +1,4 @@
+const { gerarParcelas } = require('./installments');
 // ============ CLIENTS ============
 const clientRouter = require('express').Router();
 const { auth, requireActive } = require('../middleware/auth');
