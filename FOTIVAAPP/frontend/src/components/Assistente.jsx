@@ -20,7 +20,9 @@ export default function Assistente() {
   const [input,   setInput]   = useState('');
   const [loading, setLoading] = useState(false);
   const [recOn,   setRecOn]   = useState(false);
-  const [pending, setPending] = useState(null);
+  const [pending,  setPending]  = useState(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editForm, setEditForm] = useState({});
   const bottomRef = useRef(null);
   const recRef    = useRef(null);
   const transRef  = useRef('');
@@ -29,27 +31,54 @@ export default function Assistente() {
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) return;
-    const r = new SR();
-    r.lang = 'pt-BR'; r.continuous = true; r.interimResults = true;
-    r.onresult = e => {
-      let f = '', i = '';
-      for (let x = 0; x < e.results.length; x++)
-        e.results[x].isFinal ? f += e.results[x][0].transcript : i += e.results[x][0].transcript;
-      const t = (f + i).trim();
-      setInput(t); transRef.current = t;
-    };
-    r.onerror = e => { if (e.error !== 'no-speech') setRecOn(false); };
-    r.onend = () => setRecOn(false);
-    recRef.current = r;
-  }, []);
+    if (!SR) {
+      // Safari iOS não suporta — marca como indisponível
+      recRef.current = null;
+      return;
+    }
+    try {
+      const r = new SR();
+      r.lang = 'pt-BR';
+      r.continuous = false;   // false é mais compatível com iOS/Chrome mobile
+      r.interimResults = true;
+      r.maxAlternatives = 1;
+      r.onresult = e => {
+        let final = '';
+        let interim = '';
+        for (let x = 0; x < e.results.length; x++) {
+          if (e.results[x].isFinal) final += e.results[x][0].transcript;
+          else interim += e.results[x][0].transcript;
+        }
+        const t = (final || interim).trim();
+        if (t) { setInput(t); transRef.current = t; }
+      };
+      r.onerror = e => {
+        console.log('Speech error:', e.error);
+        setRecOn(false);
+        if (e.error === 'not-allowed') {
+          addBot('❌ Permissão de microfone negada. Ative nas configurações do celular.');
+        } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
+          addBot('❌ Erro no microfone: ' + e.error);
+        }
+      };
+      r.onend = () => setRecOn(false);
+      recRef.current = r;
+    } catch(err) {
+      console.log('SR init error:', err);
+      recRef.current = null;
+    }
+  }, [addBot]);
 
   useEffect(() => {
     if (!recOn && transRef.current.trim()) {
       const t = setTimeout(() => {
         const txt = transRef.current.trim();
-        if (txt) { send(txt); transRef.current = ''; }
-      }, 800);
+        if (txt) {
+          send(txt);
+          transRef.current = '';
+          setInput('');
+        }
+      }, 600);
       return () => clearTimeout(t);
     }
   }, [recOn]);
@@ -91,12 +120,42 @@ export default function Assistente() {
   }, [pending, addBot]);
 
   const toggleMic = () => {
-    if (!recRef.current) { addBot('❌ Microfone não disponível.'); return; }
-    if (recOn) { recRef.current.stop(); setRecOn(false); }
-    else {
-      setInput(''); transRef.current = '';
-      try { recRef.current.start(); setRecOn(true); }
-      catch { recRef.current.stop(); setTimeout(() => { recRef.current.start(); setRecOn(true); }, 200); }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR || !recRef.current) {
+      addBot('❌ Seu navegador não suporta microfone.\n\n📱 No iPhone: use o Safari e certifique-se de que o microfone está permitido em Configurações → Safari → Microfone.\n\n🤖 No Android: use o Chrome.');
+      return;
+    }
+    if (recOn) {
+      recRef.current.stop();
+      setRecOn(false);
+    } else {
+      setInput('');
+      transRef.current = '';
+      try {
+        recRef.current.start();
+        setRecOn(true);
+      } catch(err) {
+        console.log('Start error:', err);
+        // Recria o recognition e tenta de novo
+        try {
+          const r = new SR();
+          r.lang = 'pt-BR'; r.continuous = false; r.interimResults = true;
+          r.onresult = e => {
+            let t = '';
+            for (let x = 0; x < e.results.length; x++)
+              t += e.results[x][0].transcript;
+            if (t.trim()) { setInput(t.trim()); transRef.current = t.trim(); }
+          };
+          r.onerror = e => { setRecOn(false); };
+          r.onend = () => setRecOn(false);
+          recRef.current = r;
+          r.start();
+          setRecOn(true);
+        } catch(err2) {
+          addBot('❌ Não foi possível ativar o microfone. Tente digitar sua mensagem.');
+          setRecOn(false);
+        }
+      }
     }
   };
 
@@ -174,9 +233,9 @@ export default function Assistente() {
                         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, background: 'linear-gradient(135deg,#E87722,#C85A00)', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                         <Check size={13} /> Confirmar
                       </button>
-                      <button onClick={() => { setPending(null); addBot('Ok! Me diga o que quer corrigir.'); }} disabled={loading}
+                      <button onClick={() => { setEditForm(pending?.dados || {}); setEditMode(true); }} disabled={loading}
                         style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, background: '#222', color: '#aaa', border: '1px solid rgba(255,255,255,0.08)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
-                        <Edit3 size={13} /> Editar
+                        <Edit3 size={13} /> Editar dados
                       </button>
                     </div>
                   )}
@@ -237,6 +296,49 @@ export default function Assistente() {
               style={{ padding: 9, borderRadius: 10, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg,#E87722,#C85A00)', color: '#fff', opacity: !input.trim() || loading ? 0.4 : 1, transition: 'all .15s' }}>
               <Send size={17} />
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de edição de dados */}
+      {editMode && pending && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:16 }}>
+          <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.1)', borderRadius:16, padding:24, width:'100%', maxWidth:360 }}>
+            <div style={{ color:'#fff', fontWeight:700, fontSize:15, marginBottom:16 }}>✏️ Editar dados</div>
+            {[
+              ['tipo_evento',    'Tipo de evento',  'text'],
+              ['cliente_nome',   'Nome do cliente', 'text'],
+              ['data',           'Data (AAAA-MM-DD)','date'],
+              ['horario',        'Horário (HH:MM)',  'time'],
+              ['valor_total',    'Valor total (R$)', 'number'],
+              ['valor_pago',     'Entrada paga (R$)','number'],
+              ['local',          'Local',            'text'],
+              ['forma_pagamento','Forma pagamento',  'text'],
+            ].map(([key, label, type]) => (
+              <div key={key} style={{ marginBottom:10 }}>
+                <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>{label}</label>
+                <input
+                  type={type}
+                  value={editForm[key] || ''}
+                  onChange={e => setEditForm(f => ({...f, [key]: e.target.value}))}
+                  style={{ width:'100%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:8, padding:'8px 10px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit' }}
+                />
+              </div>
+            ))}
+            <div style={{ display:'flex', gap:8, marginTop:16 }}>
+              <button onClick={() => setEditMode(false)}
+                style={{ flex:1, padding:'10px', borderRadius:9, background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={() => {
+                setPending(p => ({...p, dados: editForm}));
+                setEditMode(false);
+                addBot('✅ Dados atualizados! Confirme para salvar.');
+              }}
+                style={{ flex:2, padding:'10px', borderRadius:9, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                💾 Salvar alterações
+              </button>
+            </div>
           </div>
         </div>
       )}
