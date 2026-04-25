@@ -4,7 +4,7 @@ const { Client, Event } = require('../models/models');
 
 router.use(auth, requireActive);
 
-// ── GEMINI ─────────────────────────────────────────
+// ── GEMINI ──────────────────────────────────────────
 async function callGemini(prompt, apiKey) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
   const res = await fetch(url, {
@@ -12,7 +12,7 @@ async function callGemini(prompt, apiKey) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.2, maxOutputTokens: 700 },
+      generationConfig: { temperature: 0.1, maxOutputTokens: 800 },
     }),
   });
   const data = await res.json();
@@ -20,195 +20,129 @@ async function callGemini(prompt, apiKey) {
   return data.candidates?.[0]?.content?.parts?.[0]?.text || '';
 }
 
-// ── FALLBACK COM REGRAS ─────────────────────────────
-function parseWithRules(message, clients) {
-  const msg = message.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-  const result = {
-    acao: 'conversa',
-    dados: { tipo_evento:null, cliente_nome:null, cliente_id:null, data:null,
-             horario:null, valor_total:null, valor_pago:null,
-             forma_pagamento:null, parcelas:null, local:null, observacoes:null },
-    resumo: '', resposta: '',
-  };
-
-  // LISTAR
-  if (/list|ver|mostrar|quais|meus (cliente|evento)/.test(msg)) {
-    if (/cliente/.test(msg)) { result.acao = 'listar_clientes'; return result; }
-    if (/evento|agenda|proximo/.test(msg)) { result.acao = 'listar_eventos'; return result; }
-  }
-
-  // NOVO CLIENTE
-  if (/novo cliente|adicionar cliente|cadastrar cliente|cliente novo/.test(msg)) {
-    result.acao = 'criar_cliente';
-    const nomeM = message.match(/cliente[:\s]+([A-ZÀ-Ú][a-zA-ZÀ-ú\s]{2,30})/i);
-    if (nomeM) result.dados.cliente_nome = nomeM[1].trim();
-    const telM = message.match(/(\(?\d{2}\)?\s?\d{4,5}[-\s]?\d{4})/);
-    if (telM) result.dados.telefone = telM[1];
-    result.resumo = `Novo cliente: ${result.dados.cliente_nome || '?'}`;
-    return result;
-  }
-
-  // CRIAR EVENTO — detecta tipo
-  const tipos = {
-    casamento: /casamento|noivado|bodas/,
-    ensaio:    /ensaio|sessao|session|book/,
-    formatura: /formatura|colacao|formandos/,
-    newborn:   /newborn|bebe|recem.nascido|gestante/,
-    aniversario:/aniversario|festa|birthday|15 anos|debutante/,
-    familia:   /familia|family/,
-    corporativo:/corporativo|empresa|corporate|produto|comercial/,
-  };
-
-  let tipoDetectado = null;
-  for (const [tipo, regex] of Object.entries(tipos)) {
-    if (regex.test(msg)) { tipoDetectado = tipo.charAt(0).toUpperCase() + tipo.slice(1); break; }
-  }
-
-  // Detecta valor total — "R$3000", "3 mil", "3000 reais"
-  const valorM = message.match(/R?\$?\s*(\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})?)\s*(?:reais|,00)?/i)
-    || message.match(/(\d+)\s*mil/i);
-  let valorTotal = null;
-  if (valorM) {
-    valorTotal = parseFloat(valorM[1].replace(/\./g,'').replace(',','.'));
-    if (/mil/i.test(message)) valorTotal *= 1000;
-  }
-
-  // Detecta valor pago / entrada
-  const pagoM = message.match(/(?:pago|entrada|sinal|pagou|adiantamento)[^\d]*R?\$?\s*(\d+(?:[.,]\d+)?)/i);
-  const valorPago = pagoM ? parseFloat(pagoM[1].replace(',','.')) : null;
-
-  // Detecta data — "23/05", "23 de maio", "15/06/2026"
-  const dataM = message.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/)
-    || message.match(/(\d{1,2})\s+de\s+(jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i);
-  let dataISO = null;
-  if (dataM) {
-    const meses = {jan:1,fev:2,mar:3,abr:4,mai:5,jun:6,jul:7,ago:8,set:9,out:10,nov:11,dez:12};
-    const dia = dataM[1];
-    const mes = isNaN(dataM[2]) ? meses[dataM[2].toLowerCase()] : parseInt(dataM[2]);
-    const ano = dataM[3] ? (dataM[3].length===2?'20'+dataM[3]:dataM[3]) : new Date().getFullYear();
-    dataISO = `${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
-  }
-
-  // Detecta horário
-  const horaM = message.match(/(\d{1,2})h(\d{2})?|(\d{1,2}):(\d{2})/i);
-  let horario = null;
-  if (horaM) horario = `${(horaM[1]||horaM[3]).padStart(2,'0')}:${(horaM[2]||horaM[4]||'00')}`;
-
-  // Detecta nome do cliente
-  let clienteNome = null, clienteId = null;
-  const preposicoes = ['da','do','de','dos','das','para','com'];
-  for (const prep of preposicoes) {
-    const r = new RegExp(`${prep}\\s+([A-ZÀ-Ú][a-zA-ZÀ-ú]{2,}(?:\\s+[A-ZÀ-Ú][a-zA-ZÀ-ú]{2,})?)`, 'i');
-    const m2 = message.match(r);
-    if (m2) {
-      clienteNome = m2[1].trim();
-      // Tenta encontrar na lista
-      const found = clients.find(c => c.name.toLowerCase().includes(clienteNome.toLowerCase()) ||
-        clienteNome.toLowerCase().includes(c.name.toLowerCase().split(' ')[0]));
-      if (found) { clienteId = found._id; clienteNome = found.name; }
-      break;
-    }
-  }
-
-  // Se tem tipo de evento ou valor, cria evento
-  if (tipoDetectado || valorTotal) {
-    result.acao = 'criar_evento';
-    result.dados.tipo_evento   = tipoDetectado || 'Sessão';
-    result.dados.cliente_nome  = clienteNome;
-    result.dados.cliente_id    = clienteId;
-    result.dados.data          = dataISO;
-    result.dados.horario       = horario;
-    result.dados.valor_total   = valorTotal;
-    result.dados.valor_pago    = valorPago;
-    result.resumo = [
-      `📸 ${result.dados.tipo_evento}`,
-      clienteNome ? `👤 ${clienteNome}` : null,
-      dataISO ? `📅 ${new Date(dataISO+'T12:00:00').toLocaleDateString('pt-BR')}` : null,
-      horario ? `🕐 ${horario}` : null,
-      valorTotal ? `💰 R$${valorTotal.toFixed(2)}` : null,
-      valorPago ? `✅ Entrada: R$${valorPago.toFixed(2)}` : null,
-    ].filter(Boolean).join('\n');
-    return result;
-  }
-
-  // Conversa simples
-  const saudacoes = /^(oi|ola|bom dia|boa tarde|boa noite|ei|hey|hello|tudo bem|como vai)/;
-  if (saudacoes.test(msg)) {
-    result.resposta = `Olá, ${req?.user?.name?.split(' ')[0] || ''}! 👋 Como posso ajudar?\n\nVocê pode me dizer:\n• "Casamento da Ana 23/05 R$3000"\n• "Novo cliente João 11999990000"\n• "Quais meus eventos?"`;
-  } else {
-    result.resposta = '🤔 Não entendi. Tente:\n• "Ensaio da Maria 15/06 às 10h R$800"\n• "Novo cliente Pedro"\n• "Meus clientes"';
-  }
-  return result;
-}
-
-// ── ROTA PRINCIPAL ──────────────────────────────────
+// ── ROTA PRINCIPAL ───────────────────────────────────
 router.post('/', requireNormalOrPro, async (req, res) => {
   const { message } = req.body;
   if (!message?.trim()) return res.status(400).json({ error: 'Mensagem vazia' });
 
   const clients = await Client.find({ userId: req.user._id }).select('name _id').limit(100);
-  const clientsList = clients.map(c => `${c.name}(id:${c._id})`).join(', ') || 'Nenhum';
+  const clientsList = clients.length
+    ? clients.map(c => `- "${c.name}" (id: ${c._id})`).join('\n')
+    : '(nenhum cliente cadastrado)';
 
-  let parsed = null;
+  const hoje = new Date();
+  const hojeStr = hoje.toLocaleDateString('pt-BR');
+  const anoAtual = hoje.getFullYear();
   const geminiKey = process.env.GEMINI_API_KEY;
 
-  // Tenta Gemini primeiro
-  if (geminiKey && !geminiKey.includes('placeholder')) {
+  if (!geminiKey || geminiKey.includes('placeholder')) {
+    return res.json({
+      message: '⚠️ Configure GEMINI_API_KEY no Render.\nAcesse aistudio.google.com para obter sua chave gratuita.'
+    });
+  }
+
+  const prompt = `Você é o assistente do app FOTIVA, que ajuda fotógrafos brasileiros a gerenciar eventos e clientes.
+
+CONTEXTO:
+- Fotógrafo: ${req.user.name}
+- Data de hoje: ${hojeStr} (ano ${anoAtual})
+- Clientes cadastrados:
+${clientsList}
+
+MENSAGEM DO FOTÓGRAFO: "${message}"
+
+TAREFA: Analise a mensagem e retorne um JSON válido (sem markdown, sem texto extra).
+
+REGRAS IMPORTANTES:
+1. Datas: sempre no formato YYYY-MM-DD. Se o usuário disser "15/06", use "${anoAtual}-06-15". Se disser "próximo sábado", calcule a data real.
+2. Valores monetários: extraia apenas o número. "3 mil" = 3000, "R$ 500" = 500, "mil e quinhentos" = 1500.
+3. Horários: formato HH:MM. "16h" = "16:00", "às 10" = "10:00".
+4. Cliente: se mencionar um nome que existe na lista acima, use o id correspondente. Se for nome novo, deixe cliente_id como null.
+5. Tipos de evento aceitos: Casamento, Ensaio, Formatura, Newborn, Aniversário, Família, Corporativo, Book, Gestante.
+
+FORMATO DE RESPOSTA (escolha a ação correta):
+
+Para CRIAR EVENTO:
+{"acao":"criar_evento","dados":{"tipo_evento":"Casamento","cliente_nome":"Ana Silva","cliente_id":"ID_SE_EXISTIR_OU_NULL","data":"${anoAtual}-06-15","horario":"16:00","valor_total":3000,"valor_pago":500,"forma_pagamento":"pix","parcelas":1,"local":"Igreja São Paulo","observacoes":""},"resumo":"📸 Casamento\\n👤 Ana Silva\\n📅 15/06/${anoAtual} às 16h\\n📍 Igreja São Paulo\\n💰 R$3.000,00\\n✅ Entrada: R$500,00"}
+
+Para CRIAR CLIENTE:
+{"acao":"criar_cliente","dados":{"cliente_nome":"João Souza","telefone":"37999990000","email":""},"resumo":"👤 Novo cliente: João Souza\\n📱 (37) 99999-0000"}
+
+Para LISTAR CLIENTES:
+{"acao":"listar_clientes","dados":{},"resumo":""}
+
+Para LISTAR EVENTOS:
+{"acao":"listar_eventos","dados":{},"resumo":""}
+
+Para CONVERSA SIMPLES:
+{"acao":"conversa","dados":{},"resumo":"","resposta":"Sua resposta aqui"}
+
+IMPORTANTE: Retorne APENAS o JSON, sem nenhum texto antes ou depois.`;
+
+  try {
+    const text = await callGemini(prompt, geminiKey);
+    const clean = text.trim().replace(/```json|```/g, '').trim();
+
+    let parsed;
     try {
-      const hoje = new Date().toLocaleDateString('pt-BR');
-      const ano  = new Date().getFullYear();
-      const prompt = `Assistente FOTIVA para fotografo brasileiro.
-Fotografo: ${req.user.name}. Clientes: ${clientsList}. Hoje: ${hoje}.
-Mensagem: "${message}"
-
-Responda SOMENTE com JSON valido sem markdown:
-{"acao":"criar_evento"|"criar_cliente"|"listar_clientes"|"listar_eventos"|"conversa","dados":{"tipo_evento":null,"cliente_nome":null,"cliente_id":null,"data":null,"horario":null,"valor_total":null,"valor_pago":null,"forma_pagamento":null,"parcelas":null,"local":null,"observacoes":null},"resumo":"resumo em portugues","resposta":"resposta se conversa"}
-
-Regras: datas YYYY-MM-DD, valores numero puro, horario HH:MM. Tipos: Casamento/Ensaio/Formatura/Newborn/Aniversario/Familia/Corporativo`;
-
-      const text = await callGemini(prompt, geminiKey);
-      parsed = JSON.parse(text.trim().replace(/```json|```/g,'').trim());
+      parsed = JSON.parse(clean);
     } catch (e) {
-      console.log('Gemini falhou, usando regras:', e.message);
-      parsed = null;
+      console.log('JSON parse error:', e.message, '\nRaw:', clean.slice(0, 200));
+      return res.json({
+        message: '🤔 Não entendi bem. Tente ser mais específico.\n\nExemplos:\n• "Casamento da Ana 15/06 às 16h R$3000 entrada 500"\n• "Novo cliente João telefone 37999990000"\n• "Quais meus eventos?"'
+      });
     }
-  }
 
-  // Fallback para regras
-  if (!parsed) {
-    parsed = parseWithRules(message, clients);
-    // Injeta req no fallback para saudacao personalizada
-    if (parsed.acao === 'conversa' && parsed.resposta.includes('{{nome}}')) {
-      parsed.resposta = parsed.resposta.replace('{{nome}}', req.user.name.split(' ')[0]);
+    const { acao, dados, resumo, resposta } = parsed;
+
+    // Listar clientes
+    if (acao === 'listar_clientes') {
+      const all = await Client.find({ userId: req.user._id }).sort({ name: 1 });
+      if (!all.length) return res.json({ message: '📋 Nenhum cliente cadastrado ainda.\n\nDiga: "Novo cliente Ana Silva telefone 37999990000"' });
+      const lista = all.slice(0, 20).map(c => `• ${c.name}${c.phone ? ` — ${c.phone}` : ''}`).join('\n');
+      return res.json({ message: `👥 Seus clientes (${all.length}):\n${lista}` });
     }
+
+    // Listar eventos
+    if (acao === 'listar_eventos') {
+      const all = await Event.find({ userId: req.user._id, eventDate: { $gte: new Date() } }).sort({ eventDate: 1 }).limit(10);
+      if (!all.length) return res.json({ message: '📅 Nenhum evento futuro agendado.' });
+      const lista = all.map(e => `• ${e.eventType} — ${e.clientName} — ${e.eventDate ? new Date(e.eventDate).toLocaleDateString('pt-BR') : 'Sem data'}`).join('\n');
+      return res.json({ message: `📅 Próximos eventos:\n${lista}` });
+    }
+
+    // Criar evento ou cliente — pede confirmação
+    if (acao === 'criar_evento' || acao === 'criar_cliente') {
+      if (!resumo) {
+        return res.json({ message: '❓ Não consegui entender os detalhes. Tente novamente com mais informações.' });
+      }
+      return res.json({
+        message: `📋 Entendi! Veja se está correto:\n\n${resumo}\n\nConfirmar?`,
+        acao_pendente: acao,
+        dados,
+        botoes: ['✅ Confirmar', '✏️ Editar'],
+      });
+    }
+
+    // Conversa simples
+    const msgResposta = resposta || resumo ||
+      `👋 Olá, ${req.user.name.split(' ')[0]}! Como posso ajudar?\n\nExemplos:\n• "Casamento da Ana 15/06 às 16h R$3000"\n• "Novo cliente João 37999990000"\n• "Meus eventos de hoje"`;
+    res.json({ message: msgResposta });
+
+  } catch (e) {
+    console.error('Chat error:', e.message);
+    if (e.message.includes('quota') || e.message.includes('429')) {
+      return res.json({ message: '⚠️ Limite da API Gemini atingido. Tente novamente em alguns minutos.' });
+    }
+    res.json({ message: '❌ Erro ao processar. Tente novamente.' });
   }
-
-  const { acao, dados, resumo, resposta } = parsed;
-
-  if (acao === 'listar_clientes') {
-    const all = await Client.find({ userId: req.user._id }).sort({ name: 1 });
-    if (!all.length) return res.json({ message: '📋 Nenhum cliente ainda.\n\nDiga: "Novo cliente Ana Silva, tel 11999990000"' });
-    return res.json({ message: `👥 Seus clientes (${all.length}):\n${all.slice(0,20).map(c=>`• ${c.name}${c.phone?` — ${c.phone}`:''}`).join('\n')}` });
-  }
-
-  if (acao === 'listar_eventos') {
-    const all = await Event.find({ userId: req.user._id, eventDate: { $gte: new Date() } }).sort({ eventDate: 1 }).limit(10);
-    if (!all.length) return res.json({ message: '📅 Nenhum evento futuro.' });
-    return res.json({ message: `📅 Próximos eventos:\n${all.map(e=>`• ${e.eventType} — ${e.clientName} — ${e.eventDate?new Date(e.eventDate).toLocaleDateString('pt-BR'):'Sem data'}`).join('\n')}` });
-  }
-
-  if (acao === 'criar_evento' || acao === 'criar_cliente') {
-    return res.json({ message: `📋 Entendi!\n\n${resumo}\n\nConfirmar?`, acao_pendente: acao, dados, botoes: ['✅ Confirmar','✏️ Editar'] });
-  }
-
-  res.json({ message: resposta || resumo || '👋 Como posso ajudar?\n\nExemplos:\n• "Casamento da Ana 23/05 R$3000"\n• "Novo cliente João"\n• "Meus eventos"' });
 });
 
-// ── CONFIRMAR AÇÃO ──────────────────────────────────
+// ── CONFIRMAR AÇÃO ───────────────────────────────────
 router.post('/confirmar', requireNormalOrPro, async (req, res) => {
   const { acao_pendente, dados } = req.body;
 
+  // ── Criar cliente ──
   if (acao_pendente === 'criar_cliente') {
     if (!dados?.cliente_nome) return res.status(400).json({ error: 'Nome obrigatório' });
     const c = await Client.create({
@@ -217,37 +151,60 @@ router.post('/confirmar', requireNormalOrPro, async (req, res) => {
       phone:  dados.telefone || '',
       email:  dados.email || '',
     });
-    return res.json({ message: `✅ Cliente **${c.name}** cadastrado!` });
+    return res.json({ message: `✅ Cliente **${c.name}** cadastrado com sucesso!` });
   }
 
+  // ── Criar evento ──
   if (acao_pendente === 'criar_evento') {
-    let clientId = dados.cliente_id, clientName = dados.cliente_nome || '';
-    if (!clientId && clientName) {
-      let c = await Client.findOne({ userId: req.user._id, name: new RegExp(clientName,'i') });
-      if (!c) c = await Client.create({ userId: req.user._id, name: clientName });
-      clientId = c._id; clientName = c.name;
-    }
-    if (!clientId) return res.status(400).json({ error: 'Cliente não encontrado. Informe o nome.' });
+    let clientId   = dados.cliente_id;
+    let clientName = dados.cliente_nome || '';
 
+    // Busca ou cria o cliente
+    if (!clientId && clientName) {
+      let c = await Client.findOne({ userId: req.user._id, name: new RegExp(`^${clientName}$`, 'i') });
+      if (!c) c = await Client.findOne({ userId: req.user._id, name: new RegExp(clientName, 'i') });
+      if (!c) c = await Client.create({ userId: req.user._id, name: clientName });
+      clientId   = c._id;
+      clientName = c.name;
+    }
+
+    if (!clientId) return res.status(400).json({ error: 'Cliente não identificado. Informe o nome do cliente.' });
+
+    // Monta data/hora
     let eventDate = null;
-    if (dados.data) { try { eventDate = new Date(`${dados.data}T${dados.horario||'09:00'}:00`); } catch {} }
+    if (dados.data) {
+      try {
+        const hora = dados.horario || '09:00';
+        eventDate = new Date(`${dados.data}T${hora}:00`);
+        if (isNaN(eventDate)) eventDate = null;
+      } catch { eventDate = null; }
+    }
+
     const total = parseFloat(dados.valor_total) || 0;
     const pago  = parseFloat(dados.valor_pago)  || 0;
+    const saldo = Math.max(0, total - pago);
 
-    const e = await Event.create({
-      userId: req.user._id, clientId, clientName,
+    const evento = await Event.create({
+      userId:       req.user._id,
+      clientId,
+      clientName,
       eventType:    dados.tipo_evento || 'Sessão',
       eventDate,
       location:     dados.local || '',
       totalValue:   total,
       amountPaid:   pago,
-      installments: dados.parcelas || 1,
+      installments: parseInt(dados.parcelas) || 1,
       paymentType:  dados.forma_pagamento || 'pix',
       notes:        dados.observacoes || '',
     });
 
+    const dataFmt = eventDate
+      ? eventDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+      : 'Sem data';
+    const horaFmt = dados.horario ? ` às ${dados.horario}` : '';
+
     return res.json({
-      message: `✅ Evento criado!\n\n📸 ${e.eventType} — ${clientName}\n📅 ${eventDate ? eventDate.toLocaleDateString('pt-BR') : 'Sem data'}${dados.horario ? ` às ${dados.horario}` : ''}\n📍 ${dados.local || 'Sem local'}\n💰 Total: R$${total.toFixed(2)} | Pago: R$${pago.toFixed(2)} | Saldo: R$${(total-pago).toFixed(2)}`,
+      message: `✅ Evento criado com sucesso!\n\n📸 ${evento.eventType} — ${clientName}\n📅 ${dataFmt}${horaFmt}\n📍 ${dados.local || 'Sem local'}\n💰 Total: R$${total.toFixed(2)}\n✅ Pago: R$${pago.toFixed(2)}\n⏳ Saldo: R$${saldo.toFixed(2)}`,
     });
   }
 
