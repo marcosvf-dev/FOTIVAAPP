@@ -31,20 +31,15 @@ export default function Assistente() {
 
   useEffect(() => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      // Safari iOS não suporta — marca como indisponível
-      recRef.current = null;
-      return;
-    }
+    if (!SR) { recRef.current = null; return; }
     try {
       const r = new SR();
       r.lang = 'pt-BR';
-      r.continuous = false;   // false é mais compatível com iOS/Chrome mobile
+      r.continuous = false;
       r.interimResults = true;
       r.maxAlternatives = 1;
       r.onresult = e => {
-        let final = '';
-        let interim = '';
+        let final = '', interim = '';
         for (let x = 0; x < e.results.length; x++) {
           if (e.results[x].isFinal) final += e.results[x][0].transcript;
           else interim += e.results[x][0].transcript;
@@ -56,18 +51,15 @@ export default function Assistente() {
         console.log('Speech error:', e.error);
         setRecOn(false);
         if (e.error === 'not-allowed') {
-          addBot('❌ Permissão de microfone negada. Ative nas configurações do celular.');
-        } else if (e.error !== 'no-speech' && e.error !== 'aborted') {
-          addBot('❌ Erro no microfone: ' + e.error);
+          setMsgs(p => [...p, { type:'bot', text:'❌ Permissão de microfone negada. Ative nas configurações do celular.' }]);
         }
       };
       r.onend = () => setRecOn(false);
       recRef.current = r;
     } catch(err) {
-      console.log('SR init error:', err);
       recRef.current = null;
     }
-  }, [addBot]);
+  }, []);
 
   useEffect(() => {
     if (!recOn && transRef.current.trim()) {
@@ -122,7 +114,7 @@ export default function Assistente() {
   const toggleMic = () => {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR || !recRef.current) {
-      addBot('❌ Seu navegador não suporta microfone.\n\n📱 No iPhone: use o Safari e certifique-se de que o microfone está permitido em Configurações → Safari → Microfone.\n\n🤖 No Android: use o Chrome.');
+      setMsgs(p => [...p, { type:'bot', text:'❌ Seu navegador não suporta microfone.\n📱 iPhone: Safari → Configurações → Microfone → Permitir\n🤖 Android: use o Chrome.' }]);
       return;
     }
     if (recOn) {
@@ -152,7 +144,7 @@ export default function Assistente() {
           r.start();
           setRecOn(true);
         } catch(err2) {
-          addBot('❌ Não foi possível ativar o microfone. Tente digitar sua mensagem.');
+          setMsgs(p => [...p, { type:'bot', text:'❌ Não foi possível ativar o microfone. Tente digitar.' }]);
           setRecOn(false);
         }
       }
