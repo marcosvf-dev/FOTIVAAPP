@@ -9,7 +9,7 @@ export default function Configuracoes() {
   const { user, updateUser } = useAuth();
   const [tab,          setTab]          = useState('perfil');
   const [loading,      setLoading]      = useState(false);
-  const [form,         setForm]         = useState({ name:'', studioName:'', phone:'', email:'', profileImage:'' });
+  const [form,         setForm]         = useState({ name:'', studioName:'', phone:'', email:'', profileImage:'', studioLogo:'', document:'' });
   const [pushActive,   setPushActive]   = useState(() => localStorage.getItem('push_active') === 'true');
   const [notifStatus,  setNotifStatus]  = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [notifLoading, setNotifLoading] = useState(false);
@@ -17,7 +17,8 @@ export default function Configuracoes() {
   useEffect(() => {
     if (user) {
       const savedImg = localStorage.getItem('profile_image') || user.profileImage || '';
-      setForm({ name:user.name||'', studioName:user.studioName||'', phone:user.phone||'', email:user.email||'', profileImage:savedImg });
+      const savedLogo = localStorage.getItem('studio_logo') || user.studioLogo || '';
+      setForm({ name:user.name||'', studioName:user.studioName||'', phone:user.phone||'', email:user.email||'', profileImage:savedImg, studioLogo:savedLogo, document:user.document||'' });
     }
   }, [user]);
 
@@ -128,15 +129,30 @@ export default function Configuracoes() {
     reader.readAsDataURL(file);
   };
 
+  const handleStudioLogo = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3 * 1024 * 1024) { toast.error('Logo muito grande. Máximo 3MB.'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setForm(p => ({ ...p, studioLogo: reader.result }));
+      localStorage.setItem('studio_logo', reader.result);
+      toast.success('Logo do estúdio carregada!');
+    };
+    reader.readAsDataURL(file);
+  };
+
   const saveProfile = async (e) => {
     e.preventDefault();
     setLoading(true);
     try {
       const { data } = await api.put('/api/auth/profile', {
-        name: form.name, studioName: form.studioName, phone: form.phone, profileImage: form.profileImage
+        name: form.name, studioName: form.studioName, phone: form.phone,
+        profileImage: form.profileImage, studioLogo: form.studioLogo, document: form.document
       });
       updateUser(data);
       if (form.profileImage) localStorage.setItem('profile_image', form.profileImage);
+      if (form.studioLogo) localStorage.setItem('studio_logo', form.studioLogo);
       toast.success('Perfil atualizado!');
     } catch { toast.error('Erro ao salvar perfil'); }
     finally { setLoading(false); }
@@ -230,7 +246,32 @@ export default function Configuracoes() {
                 </div>
               </div>
             </div>
-            <button type="submit" className="f-btn f-btn-primary" disabled={loading} style={{ width:'100%', padding:'13px', fontSize:15 }}>
+            {/* Logo do Estúdio */}
+            <div style={{ marginTop:16 }}>
+              <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>Logo do Estúdio (para contratos)</label>
+              <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+                <div style={{ width:80, height:50, borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px dashed rgba(255,255,255,.15)', display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', flexShrink:0 }}>
+                  {form.studioLogo
+                    ? <img src={form.studioLogo} alt="logo" style={{ width:'100%', height:'100%', objectFit:'contain' }}/>
+                    : <span style={{ color:'#444', fontSize:11, textAlign:'center', lineHeight:1.3 }}>Sem logo</span>}
+                </div>
+                <div style={{ flex:1 }}>
+                  <label htmlFor="logo-input" style={{ display:'inline-flex', alignItems:'center', gap:7, padding:'8px 14px', borderRadius:8, background:'rgba(232,119,34,.1)', border:'1px solid rgba(232,119,34,.2)', color:'#E87722', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                    📤 {form.studioLogo ? 'Trocar logo' : 'Carregar logo'}
+                    <input id="logo-input" type="file" accept="image/*" onChange={handleStudioLogo} style={{ display:'none' }}/>
+                  </label>
+                  {form.studioLogo && (
+                    <button type="button" onClick={() => { setForm(p=>({...p,studioLogo:''})); localStorage.removeItem('studio_logo'); }}
+                      style={{ marginLeft:8, background:'none', border:'none', color:'#EF4444', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>
+                      ✕ Remover
+                    </button>
+                  )}
+                  <p style={{ color:'#444', fontSize:11, marginTop:5 }}>Aparece nos contratos. Se não tiver, só o nome do estúdio aparece.</p>
+                </div>
+              </div>
+            </div>
+
+            <button type="submit" className="f-btn f-btn-primary" disabled={loading} style={{ width:'100%', padding:'13px', fontSize:15, marginTop:16 }}>
               {loading ? 'Salvando...' : <><Save size={16}/> Salvar Alterações</>}
             </button>
           </form>
