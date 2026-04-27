@@ -16,6 +16,7 @@ const nav = [
   { to: '/clientes',     icon: Users,           label: 'Clientes' },
   { to: '/pagamentos',   icon: DollarSign,      label: 'Pagamentos' },
   { to: '/galerias',     icon: Image,           label: 'Galerias PRO' },
+  { to: '/parceiros',    icon: Megaphone,       label: 'Parceiros' },
   { to: '/configuracoes',icon: Settings,        label: 'Configurações' },
 ];
 
