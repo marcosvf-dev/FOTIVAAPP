@@ -67,7 +67,7 @@ ${fo.city ? fo.city + ', ' : ''}${hoje}
 
 CONTRATANTE (CLIENTE):
 Nome: ${cl.name || ev.clientName || '_______________'}
-CPF: ${cl.cpf || '___.___.___-__'}
+CPF/CNPJ: ${cl.cpf || fotografo?.document || '___.___.___-__'}
 Endereço: ${cl.address ? `${cl.address}${cl.complement?', '+cl.complement:''}, ${cl.city||''}${cl.state?'/'+cl.state:''}` : '_______________________________________________'}
 Telefone: ${cl.phone || '(__) _____-____'}
 E-mail: ${cl.email || '___________________________'}
@@ -163,7 +163,7 @@ CPF: ${cl.cpf || '___.___.___-__'}
 </style>
 </head>
 <body>
-<div class="logo"><img src="${LOGO_SRC}" alt="Fotiva"/></div>
+<div class="logo">${(fotografo?.studioLogo || localStorage.getItem('studio_logo')) ? `<img src="${fotografo?.studioLogo || localStorage.getItem('studio_logo')}" alt="Logo" style="max-height:60px;max-width:200px;object-fit:contain">` : `<div style="font-size:22px;font-weight:800;letter-spacing:1px">${fotografo?.studioName || fotografo?.name || 'Fotiva'}</div>`}</div>
 <h1>CONTRATO DE PRESTAÇÃO DE SERVIÇOS FOTOGRÁFICOS</h1>
 <pre>${texto}</pre>
 </body>
@@ -223,7 +223,7 @@ CPF: ${cl.cpf || '___.___.___-__'}
       <div style={{ maxWidth:900, margin:'0 auto' }}>
 
         {/* Header */}
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 0', marginBottom:20 }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 0', marginBottom:20, flexWrap:'wrap', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
             <FileText size={22} color="#E87722"/>
             <div>
@@ -231,7 +231,7 @@ CPF: ${cl.cpf || '___.___.___-__'}
               <div style={{ color:'#555', fontSize:12 }}>{evento?.eventType} · {fmtDateShort(evento?.eventDate)}</div>
             </div>
           </div>
-          <div style={{ display:'flex', gap:10 }}>
+          <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
             <button onClick={() => setEditando(!editando)}
               style={{ padding:'8px 16px', borderRadius:9, background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
               ✏️ {editando ? 'Fechar edição' : 'Editar cláusulas'}
@@ -251,12 +251,18 @@ CPF: ${cl.cpf || '___.___.___-__'}
           </div>
         </div>
 
-        <div style={{ display:'grid', gridTemplateColumns: editando ? '1fr 340px' : '1fr', gap:20 }}>
+        <div style={{ display:'grid', gridTemplateColumns: editando ? 'minmax(0,1fr) 300px' : '1fr', gap:16 }}>
 
           {/* Contrato preview */}
-          <div style={{ background:'#fff', borderRadius:16, padding:'48px 56px', color:'#1a1a1a', fontFamily:'Georgia,serif', lineHeight:1.8 }}>
+          <div style={{ background:'#fff', borderRadius:16, padding:'24px 20px', color:'#1a1a1a', fontFamily:'Georgia,serif', lineHeight:1.8, overflowX:'auto' }}>
             <div style={{ textAlign:'center', marginBottom:28 }}>
-              <img src={LOGO_SRC} alt="Fotiva" style={{ height:44, objectFit:'contain', marginBottom:16 }}/>
+              {(fotografo?.studioLogo || localStorage.getItem('studio_logo')) ? (
+                <img src={fotografo?.studioLogo || localStorage.getItem('studio_logo')} alt="Logo" style={{ height:60, objectFit:'contain', marginBottom:16, maxWidth:200 }}/>
+              ) : (
+                <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a', marginBottom:16, letterSpacing:1 }}>
+                  {fotografo?.studioName || fotografo?.name || 'Fotiva'}
+                </div>
+              )}
               <h2 style={{ fontSize:15, fontWeight:700, letterSpacing:2, textTransform:'uppercase', borderBottom:'2px solid #333', paddingBottom:12, marginBottom:0 }}>
                 Contrato de Prestação de Serviços Fotográficos
               </h2>
