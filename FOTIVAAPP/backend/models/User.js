@@ -17,7 +17,9 @@ const userSchema = new mongoose.Schema({
     stripeSubId:        { type: String, default: null },
     lastPayment:        { type: Date, default: null },
   },
-  pushSubscription: { type: Object, default: null },
+  pushSubscription:  { type: Object, default: null },
+  whatsappPhone:     { type: String, default: '' },
+  whatsappApiKey:    { type: String, default: '' },
 }, { timestamps: true });
 
 userSchema.virtual('isActive').get(function() {
