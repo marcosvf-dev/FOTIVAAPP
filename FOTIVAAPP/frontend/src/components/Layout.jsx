@@ -98,7 +98,7 @@ export default function Layout({ children }) {
       <Sidebar />
 
       {/* Main */}
-      <div style={{ flex: 1, marginLeft: 0, display: 'flex', flexDirection: 'column' }}
+      <div style={{ flex: 1, marginLeft: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', maxWidth: '100vw' }}
         className="lg-ml-220">
         {/* Mobile topbar */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: '#0A0A0A', borderBottom: '1px solid rgba(255,255,255,0.05)', position: 'sticky', top: 0, zIndex: 30 }}
@@ -110,7 +110,7 @@ export default function Layout({ children }) {
           <img src={LOGO_SRC} alt="Fotiva" style={{ height: 24, objectFit: 'contain' }}/>
         </div>
 
-        <main style={{ flex: 1, padding: '28px 28px', maxWidth: 1200, width: '100%', margin: '0 auto' }}>
+        <main style={{ flex: 1, padding: '20px 16px', maxWidth: 1200, width: '100%', margin: '0 auto', boxSizing: 'border-box', overflowX: 'hidden' }}>
           <div className="animate-fadeIn">{children}</div>
         </main>
       </div>
@@ -125,7 +125,13 @@ export default function Layout({ children }) {
         }
         @media(max-width:1023px){
           aside{transform:translateX(-100%)}
+          main { padding: 16px 14px !important; }
         }
+        @media(max-width:400px){
+          main { padding: 12px 10px !important; }
+        }
+        * { box-sizing: border-box; }
+        img, video { max-width: 100%; }
       `}</style>
     </div>
   );
