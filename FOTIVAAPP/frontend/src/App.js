@@ -17,6 +17,7 @@ import Assinatura     from './pages/Assinatura';
 import PagamentoRetorno from './pages/PagamentoRetorno';
 import Admin          from './pages/Admin';
 import Galerias       from './pages/Galerias';
+import Parceiros      from './pages/Parceiros';
 import GaleriaCliente from './pages/GaleriaCliente';
 
 function Private({ children, requireSub = true }) {
@@ -60,6 +61,7 @@ export default function App() {
           <Route path="/pagamentos"         element={<Private><Pagamentos /></Private>} />
           <Route path="/configuracoes"      element={<Private><Configuracoes /></Private>} />
           <Route path="/galerias"            element={<Private><Galerias /></Private>} />
+          <Route path="/parceiros"           element={<Private><Parceiros /></Private>} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
         <Toaster position="top-right" toastOptions={{ style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' } }}/>
