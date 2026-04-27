@@ -43,6 +43,13 @@ export default function AdminPanel() {
   const [filter,   setFilter]   = useState('all');
   const [uLoading, setULoading] = useState(false);
 
+  // Anúncios
+  const [ads,          setAds]          = useState([]);
+  const [adsLoading,   setAdsLoading]   = useState(false);
+  const [adModal,      setAdModal]      = useState(false);
+  const [editingAd,    setEditingAd]    = useState(null);
+  const [adForm,       setAdForm]       = useState({ title:'', description:'', category:'outros', image:'', link:'', whatsapp:'', contactName:'', featured:false, expiresAt:'' });
+
   // Cupons
   const [coupons,  setCoupons]  = useState([]);
   const [cLoading, setCLoading] = useState(false);
@@ -89,6 +96,56 @@ export default function AdminPanel() {
     } catch {}
     setULoading(false);
   }, [token, page, filter, search]);
+
+  // Anúncios
+  const loadAds = useCallback(async () => {
+    setAdsLoading(true);
+    try { const r = await axios.get('/api/ads/admin/all', { headers: { Authorization: `Bearer ${token}` } }); setAds(r.data); }
+    catch { console.error('Erro ao carregar anúncios'); }
+    setAdsLoading(false);
+  }, [token]);
+
+  useEffect(() => { if (tab === 'anuncios') loadAds(); }, [tab, loadAds]);
+
+  async function saveAd() {
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      if (editingAd) {
+        await axios.put(`/api/ads/${editingAd._id}`, adForm, { headers });
+      } else {
+        await axios.post('/api/ads', adForm, { headers });
+      }
+      setAdModal(false); setEditingAd(null);
+      setAdForm({ title:'', description:'', category:'outros', image:'', link:'', whatsapp:'', contactName:'', featured:false, expiresAt:'' });
+      loadAds();
+    } catch (e) { alert(e.response?.data?.error || 'Erro ao salvar anúncio'); }
+  }
+
+  async function deleteAd(id, title) {
+    if (!window.confirm(`Deletar anúncio "${title}"?`)) return;
+    try { await axios.delete(`/api/ads/${id}`, { headers: { Authorization: `Bearer ${token}` } }); loadAds(); }
+    catch { alert('Erro ao deletar'); }
+  }
+
+  async function toggleAd(id, active) {
+    try { await axios.put(`/api/ads/${id}`, { active: !active }, { headers: { Authorization: `Bearer ${token}` } }); loadAds(); }
+    catch { alert('Erro ao atualizar'); }
+  }
+
+  function openAdModal(ad = null) {
+    setEditingAd(ad);
+    setAdForm(ad ? { title:ad.title||'', description:ad.description||'', category:ad.category||'outros', image:ad.image||'', link:ad.link||'', whatsapp:ad.whatsapp||'', contactName:ad.contactName||'', featured:!!ad.featured, expiresAt: ad.expiresAt ? ad.expiresAt.split('T')[0] : '' } : { title:'', description:'', category:'outros', image:'', link:'', whatsapp:'', contactName:'', featured:false, expiresAt:'' });
+    setAdModal(true);
+  }
+
+  function handleAdImage(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 3*1024*1024) { alert('Imagem muito grande. Máximo 3MB.'); return; }
+    const reader = new FileReader();
+    reader.onloadend = () => setAdForm(f => ({...f, image: reader.result}));
+    reader.readAsDataURL(file);
+  }
 
   // Cupons
   const loadCoupons = useCallback(async () => {
@@ -244,6 +301,7 @@ export default function AdminPanel() {
           {[
             { id:'users',   label:'Fotógrafos', icon:<Users size={13}/> },
             { id:'coupons', label:'Cupons',      icon:<Tag size={13}/> },
+            { id:'anuncios', label:'Anúncios', icon:<Megaphone size={13}/> },
           ].map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               style={{ display:'flex', alignItems:'center', gap:6, padding:'7px 16px', borderRadius:8, border:'none', cursor:'pointer', fontSize:13, fontWeight:600, fontFamily:'inherit', transition:'all .15s',
@@ -586,6 +644,155 @@ export default function AdminPanel() {
               </div>
             )}
           </>
+        )}
+
+        {/* ── ANÚNCIOS ─────────────────────────── */}
+        {tab === 'anuncios' && (
+          <>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <div>
+                <h2 style={{ fontSize:18, fontWeight:800, color:'#fff', letterSpacing:-.3 }}>Anúncios & Parceiros</h2>
+                <p style={{ color:'#555', fontSize:13, marginTop:3 }}>Gerencie os anúncios exibidos no app</p>
+              </div>
+              <button onClick={() => openAdModal()}
+                style={{ display:'flex', alignItems:'center', gap:7, padding:'9px 18px', borderRadius:10, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                <Plus size={15}/> Novo Anúncio
+              </button>
+            </div>
+
+            {adsLoading ? (
+              <div style={{ textAlign:'center', padding:48, color:'#555' }}>Carregando...</div>
+            ) : !ads.length ? (
+              <div style={{ textAlign:'center', padding:48, color:'#555' }}>
+                <Megaphone size={36} color="#333" style={{ marginBottom:12 }}/>
+                <div>Nenhum anúncio cadastrado ainda</div>
+                <div style={{ fontSize:13, marginTop:6 }}>Clique em "Novo Anúncio" para começar</div>
+              </div>
+            ) : (
+              <div style={{ display:'flex', flexDirection:'column', gap:12 }}>
+                {ads.map(ad => (
+                  <div key={ad._id} style={{ background:'#111', border:`1px solid ${ad.active?'rgba(255,255,255,.07)':'rgba(255,255,255,.03)'}`, borderRadius:14, padding:'16px 18px', display:'flex', gap:14, alignItems:'flex-start', opacity:ad.active?1:.5 }}>
+                    {/* Imagem */}
+                    <div style={{ width:70, height:70, borderRadius:10, background:'rgba(255,255,255,.05)', flexShrink:0, overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                      {ad.image ? <img src={ad.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <Megaphone size={24} color="#333"/>}
+                    </div>
+                    {/* Info */}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:4, flexWrap:'wrap' }}>
+                        <span style={{ color:'#fff', fontWeight:700, fontSize:14 }}>{ad.title}</span>
+                        {ad.featured && <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:5, background:'rgba(232,119,34,.15)', color:'#E87722' }}>⭐ DESTAQUE</span>}
+                        <span style={{ fontSize:9, fontWeight:700, padding:'2px 7px', borderRadius:5, background: ad.active?'rgba(34,197,94,.1)':'rgba(239,68,68,.1)', color:ad.active?'#22C55E':'#EF4444' }}>{ad.active?'ATIVO':'INATIVO'}</span>
+                      </div>
+                      <div style={{ color:'#666', fontSize:12, marginBottom:6 }}>{ad.description?.slice(0,80)}{ad.description?.length>80?'...':''}</div>
+                      <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
+                        {ad.whatsapp && <span style={{ color:'#25D366', fontSize:11, display:'flex', alignItems:'center', gap:4 }}><MessageCircle size={10}/>{ad.whatsapp}</span>}
+                        {ad.link && <span style={{ color:'#3B82F6', fontSize:11, display:'flex', alignItems:'center', gap:4 }}><ExternalLink size={10}/>{ad.link.slice(0,30)}</span>}
+                        {ad.contactName && <span style={{ color:'#555', fontSize:11 }}>👤 {ad.contactName}</span>}
+                        {ad.expiresAt && <span style={{ color: new Date(ad.expiresAt) < new Date() ? '#EF4444' : '#888', fontSize:11 }}>⏰ {new Date(ad.expiresAt).toLocaleDateString('pt-BR')}</span>}
+                      </div>
+                      <div style={{ color:'#444', fontSize:11, marginTop:4 }}>👁 {ad.views||0} views · 🖱 {ad.clicks||0} cliques</div>
+                    </div>
+                    {/* Ações */}
+                    <div style={{ display:'flex', flexDirection:'column', gap:6, flexShrink:0 }}>
+                      <button onClick={() => openAdModal(ad)}
+                        style={{ background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:8, padding:'7px 12px', color:'#888', cursor:'pointer', fontSize:12, fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                        ✏️ Editar
+                      </button>
+                      <button onClick={() => toggleAd(ad._id, ad.active)}
+                        style={{ background: ad.active?'rgba(239,68,68,.06)':'rgba(34,197,94,.06)', border:`1px solid ${ad.active?'rgba(239,68,68,.15)':'rgba(34,197,94,.15)'}`, borderRadius:8, padding:'7px 12px', color:ad.active?'#EF4444':'#22C55E', cursor:'pointer', fontSize:12, fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                        {ad.active ? '🔕 Desativar' : '✅ Ativar'}
+                      </button>
+                      <button onClick={() => deleteAd(ad._id, ad.title)}
+                        style={{ background:'rgba(239,68,68,.06)', border:'1px solid rgba(239,68,68,.15)', borderRadius:8, padding:'7px 12px', color:'#EF4444', cursor:'pointer', fontSize:12, fontFamily:'inherit' }}>
+                        🗑 Deletar
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Modal de anúncio */}
+        {adModal && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:200, padding:20, overflowY:'auto' }}>
+            <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:500, maxHeight:'90vh', overflowY:'auto', margin:'auto' }}>
+              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+                <h3 style={{ color:'#fff', fontSize:16, fontWeight:800, margin:0 }}>{editingAd ? '✏️ Editar Anúncio' : '📣 Novo Anúncio'}</h3>
+                <button onClick={() => setAdModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555' }}><X size={20}/></button>
+              </div>
+
+              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+                {[['title','Título do anúncio *','text','Ex: Câmeras Nikon — Divinópolis'],['contactName','Nome do anunciante','text','Ex: João Fotografia'],['whatsapp','WhatsApp (com DDD)','text','37999990000'],['link','Site ou link','text','https://meusite.com.br']].map(([k,l,t,ph]) => (
+                  <div key={k}>
+                    <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:5 }}>{l}</label>
+                    <input type={t} value={adForm[k]} onChange={e => setAdForm(f=>({...f,[k]:e.target.value}))} placeholder={ph}
+                      style={{ width:'100%', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 13px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }}/>
+                  </div>
+                ))}
+
+                <div>
+                  <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:5 }}>Descrição</label>
+                  <textarea value={adForm.description} onChange={e => setAdForm(f=>({...f,description:e.target.value}))} rows={3} placeholder="Descreva o produto ou serviço..."
+                    style={{ width:'100%', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 13px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }}/>
+                </div>
+
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                  <div>
+                    <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:5 }}>Categoria</label>
+                    <select value={adForm.category} onChange={e => setAdForm(f=>({...f,category:e.target.value}))}
+                      style={{ width:'100%', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 13px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit', cursor:'pointer' }}>
+                      {[['equipamentos','📷 Equipamentos'],['studios','🏢 Estúdios'],['laboratorios','🖼️ Laboratórios'],['software','💻 Software'],['cursos','🎓 Cursos'],['outros','✨ Outros']].map(([v,l])=><option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:5 }}>Vencimento</label>
+                    <input type="date" value={adForm.expiresAt} onChange={e => setAdForm(f=>({...f,expiresAt:e.target.value}))}
+                      style={{ width:'100%', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 13px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit' }}/>
+                  </div>
+                </div>
+
+                {/* Upload de imagem */}
+                <div>
+                  <label style={{ display:'block', color:'#666', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>Imagem do anúncio</label>
+                  <div style={{ display:'flex', gap:12, alignItems:'center' }}>
+                    <div style={{ width:80, height:60, borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px dashed rgba(255,255,255,.15)', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {adForm.image ? <img src={adForm.image} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }}/> : <span style={{ color:'#444', fontSize:11 }}>Sem imagem</span>}
+                    </div>
+                    <div>
+                      <label htmlFor="ad-img-input" style={{ display:'inline-flex', alignItems:'center', gap:6, padding:'7px 14px', borderRadius:8, background:'rgba(232,119,34,.1)', border:'1px solid rgba(232,119,34,.2)', color:'#E87722', fontSize:12, fontWeight:700, cursor:'pointer' }}>
+                        📤 {adForm.image ? 'Trocar imagem' : 'Carregar imagem'}
+                        <input id="ad-img-input" type="file" accept="image/*" onChange={handleAdImage} style={{ display:'none' }}/>
+                      </label>
+                      {adForm.image && <button type="button" onClick={() => setAdForm(f=>({...f,image:''}))} style={{ marginLeft:8, background:'none', border:'none', color:'#EF4444', fontSize:12, cursor:'pointer', fontFamily:'inherit' }}>✕ Remover</button>}
+                      <div style={{ color:'#444', fontSize:11, marginTop:5 }}>PNG, JPG · Máx 3MB</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Destaque */}
+                <label style={{ display:'flex', alignItems:'center', gap:10, cursor:'pointer' }}>
+                  <input type="checkbox" checked={adForm.featured} onChange={e => setAdForm(f=>({...f,featured:e.target.checked}))} style={{ width:16, height:16, accentColor:'#E87722' }}/>
+                  <div>
+                    <div style={{ color:'#fff', fontSize:13, fontWeight:600 }}>⭐ Anúncio em destaque</div>
+                    <div style={{ color:'#555', fontSize:11 }}>Aparece no topo da lista</div>
+                  </div>
+                </label>
+              </div>
+
+              <div style={{ display:'flex', gap:10, marginTop:20 }}>
+                <button onClick={() => setAdModal(false)}
+                  style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.08)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  Cancelar
+                </button>
+                <button onClick={saveAd}
+                  style={{ flex:2, padding:'11px', borderRadius:10, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                  💾 {editingAd ? 'Salvar alterações' : 'Criar anúncio'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>
