@@ -56,7 +56,7 @@ router.post('/auto-login', async (req, res) => {
 router.get('/me', auth, (req, res) => res.json(sanitize(req.user)));
 
 router.put('/profile', auth, async (req, res) => {
-  const { name, studioName, phone, profileImage } = req.body;
+  const { name, studioName, phone, profileImage, studioLogo, document } = req.body;
   const user = await User.findByIdAndUpdate(
     req.user._id,
     { name, studioName, phone, profileImage },
