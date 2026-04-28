@@ -52,30 +52,70 @@ export default function Configuracoes() {
   async function ativarNotificacoes() {
     setNotifLoading(true);
     try {
-      if (!('Notification' in window)) { toast.error('Navegador não suporta notificações'); return; }
+      if (!('Notification' in window)) {
+        toast.error('Este navegador não suporta notificações push.');
+        setNotifLoading(false);
+        return;
+      }
+
+      // Solicita permissão
       const perm = await Notification.requestPermission();
       setNotifStatus(perm);
-      if (perm !== 'granted') { toast.error('Permissão negada. Ative nas configurações do navegador.'); return; }
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.register('/sw.js');
-        await navigator.serviceWorker.ready;
-        try {
-          const { data: vapidData } = await api.get('/api/push/vapid-key');
-          if (vapidData.key) {
-            const sub = await reg.pushManager.subscribe({
-              userVisibleOnly: true,
-              applicationServerKey: urlBase64ToUint8Array(vapidData.key),
-            });
-            await api.post('/api/push/subscribe', { subscription: sub.toJSON() });
-          }
-        } catch {}
+
+      if (perm !== 'granted') {
+        toast.error('Permissão negada. Vá em Configurações do celular → Safari/Chrome → Notificações → Permitir para Fotiva.');
+        setNotifLoading(false);
+        return;
       }
+
+      // Registra Service Worker
+      if ('serviceWorker' in navigator) {
+        try {
+          // Força atualização do SW
+          const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
+          await reg.update();
+          await navigator.serviceWorker.ready;
+
+          // Tenta assinar push com VAPID
+          try {
+            const { data: vapidData } = await api.get('/api/push/vapid-key');
+            if (vapidData?.key) {
+              const existing = await reg.pushManager.getSubscription();
+              if (existing) await existing.unsubscribe();
+              const sub = await reg.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: urlBase64ToUint8Array(vapidData.key),
+              });
+              await api.post('/api/push/subscribe', { subscription: sub.toJSON() });
+            }
+          } catch (vapidErr) {
+            console.log('VAPID não disponível, usando notificações locais:', vapidErr.message);
+          }
+        } catch (swErr) {
+          console.log('SW error:', swErr.message);
+        }
+      }
+
       setPushActive(true);
       localStorage.setItem('push_active', 'true');
       localStorage.setItem('push_permission', 'granted');
-      toast.success('Notificações ativadas!');
-    } catch (e) { toast.error('Erro ao ativar: ' + e.message); }
-    finally { setNotifLoading(false); }
+      toast.success('✅ Notificações ativadas! Você receberá alertas dos seus eventos.');
+
+      // Envia notificação de boas-vindas
+      setTimeout(() => {
+        if (Notification.permission === 'granted') {
+          new Notification('🎉 Fotiva — Notificações ativas!', {
+            body: 'Você será avisado antes dos seus eventos.',
+            icon: '/favicon.ico',
+          });
+        }
+      }, 1000);
+
+    } catch (e) {
+      console.error('Erro ao ativar notificações:', e);
+      toast.error('Erro ao ativar: ' + (e.message || 'Tente novamente'));
+    }
+    setNotifLoading(false);
   }
 
   async function desativarNotificacoes() {
@@ -98,13 +138,31 @@ export default function Configuracoes() {
   async function testarNotificacao() {
     setNotifLoading(true);
     try {
+      // Tenta via servidor primeiro
       await api.post('/api/push/test');
-      toast.success('Notificação enviada!');
+      toast.success('🔔 Notificação enviada pelo servidor!');
     } catch {
-      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-        new Notification('🎉 Fotiva — Teste', { body: 'Notificações funcionando!', icon: '/favicon.ico' });
-        toast.success('Notificação local enviada!');
-      } else { toast.error('Erro ao testar notificação'); }
+      // Fallback: notificação local via SW
+      try {
+        if ('serviceWorker' in navigator) {
+          const reg = await navigator.serviceWorker.ready;
+          reg.active?.postMessage({
+            type: 'SHOW_NOTIFICATION',
+            title: '🎉 Fotiva — Teste',
+            body: 'Notificações funcionando! Você receberá alertas dos seus eventos.',
+            url: '/dashboard',
+          });
+          toast.success('🔔 Notificação de teste enviada!');
+        } else if (Notification.permission === 'granted') {
+          new Notification('🎉 Fotiva — Teste', {
+            body: 'Notificações funcionando!',
+            icon: '/favicon.ico',
+          });
+          toast.success('🔔 Notificação local enviada!');
+        }
+      } catch (localErr) {
+        toast.error('Erro ao testar. Verifique se a permissão está ativa.');
+      }
     }
     setNotifLoading(false);
   }
@@ -225,7 +283,7 @@ export default function Configuracoes() {
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                {[['name','Nome completo',User,'text','Seu nome'],['studioName','Nome do estúdio',Camera,'text','Ex: MV Fotografia'],['phone','Telefone / WhatsApp',Phone,'tel','(11) 99999-9999']].map(([k,l,Icon,t,ph]) => (
+                {[['name','Nome completo',User,'text','Seu nome'],['studioName','Nome do estúdio',Camera,'text','Ex: MV Fotografia'],['phone','Telefone / WhatsApp',Phone,'tel','(11) 99999-9999'],['document','CPF ou CNPJ',User,'text','000.000.000-00 ou 00.000.000/0001-00']].map(([k,l,Icon,t,ph]) => (
                   <div key={k}>
                     <label style={labelStyle}>{l}</label>
                     <div style={{ position:'relative' }}>
@@ -298,7 +356,7 @@ export default function Configuracoes() {
               </p>
             </div>
 
-            {notifStatus === 'granted' && pushActive && (
+            {pushActive && notifStatus !== 'denied' && (
               <div style={{ background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.2)', borderRadius:10, padding:'9px 14px', marginBottom:12, fontSize:13, color:'#22C55E' }}>
                 ✅ Notificações push ativas
               </div>
@@ -310,7 +368,7 @@ export default function Configuracoes() {
             )}
 
             <div style={{ display:'flex', gap:10 }}>
-              {(!pushActive || notifStatus !== 'granted') ? (
+              {(!pushActive) ? (
                 <button onClick={ativarNotificacoes} disabled={notifLoading}
                   style={{ flex:1, padding:'12px', borderRadius:10, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, opacity:notifLoading?.6:1 }}>
                   <Bell size={16}/> {notifLoading ? 'Ativando...' : 'Ativar Notificações'}
