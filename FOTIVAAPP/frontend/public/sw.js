@@ -1,21 +1,30 @@
-const CACHE = 'fotiva-v1';
+const CACHE_NAME = 'fotiva-v2';
 
-self.addEventListener('install', e => { self.skipWaiting(); });
-self.addEventListener('activate', e => { e.waitUntil(self.clients.claim()); });
+self.addEventListener('install', e => {
+  self.skipWaiting();
+});
 
-// Recebe notificação push
+self.addEventListener('activate', e => {
+  e.waitUntil(self.clients.claim());
+});
+
+// Recebe notificação push do servidor
 self.addEventListener('push', e => {
-  const data = e.data?.json() || {};
-  const title   = data.title   || 'Fotiva';
+  let data = {};
+  try { data = e.data?.json() || {}; } catch { data = { title: 'Fotiva', body: e.data?.text() || '' }; }
+
+  const title   = data.title || 'Fotiva';
   const options = {
     body:    data.body    || 'Você tem um lembrete!',
-    icon:    data.icon    || '/favicon.ico',
-    badge:   data.badge   || '/favicon.ico',
+    icon:    '/favicon.ico',
+    badge:   '/favicon.ico',
     tag:     data.tag     || 'fotiva-notif',
-    data:    data.data    || { url: '/' },
+    data:    { url: data.url || '/' },
     vibrate: [200, 100, 200],
-    actions: data.actions || [],
+    requireInteraction: false,
+    silent: false,
   };
+
   e.waitUntil(self.registration.showNotification(title, options));
 });
 
@@ -24,10 +33,27 @@ self.addEventListener('notificationclick', e => {
   e.notification.close();
   const url = e.notification.data?.url || '/';
   e.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then(clients => {
-      const client = clients.find(c => c.url.includes(self.location.origin) && 'focus' in c);
-      if (client) { client.navigate(url); return client.focus(); }
-      if (self.clients.openWindow) return self.clients.openWindow(url);
+    self.clients.matchAll({ type:'window', includeUncontrolled:true }).then(clients => {
+      const existing = clients.find(c => c.url.includes(self.location.origin));
+      if (existing) { existing.navigate(url); return existing.focus(); }
+      return self.clients.openWindow(url);
     })
   );
+});
+
+// Recebe mensagens do app (para notificações agendadas)
+self.addEventListener('message', e => {
+  if (e.data?.type === 'SHOW_NOTIFICATION') {
+    const { title, body, url } = e.data;
+    self.registration.showNotification(title || 'Fotiva', {
+      body: body || '',
+      icon: '/favicon.ico',
+      badge: '/favicon.ico',
+      data: { url: url || '/' },
+      vibrate: [200, 100, 200],
+    });
+  }
+  if (e.data?.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
