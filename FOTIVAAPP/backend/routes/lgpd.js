@@ -1,14 +1,27 @@
-const express = require('express');
-const router  = express.Router();
-const { requireAuth } = require('../middleware/auth');
-const { AccessLog }   = require('../middleware/logger');
+const express  = require('express');
+const router   = express.Router();
 const mongoose = require('mongoose');
 const User     = require('../models/User');
+
+const { AccessLog } = require('../middleware/logger');
+
+function requireAuth(req, res, next) {
+  const auth = req.headers.authorization;
+  if (!auth || !auth.startsWith('Bearer ')) return res.status(401).json({ error: 'Não autenticado.' });
+  try {
+    const jwt  = require('jsonwebtoken');
+    const data = jwt.verify(auth.split(' ')[1], process.env.JWT_SECRET);
+    req.user   = data;
+    next();
+  } catch {
+    res.status(401).json({ error: 'Token inválido.' });
+  }
+}
 
 // GET /api/lgpd/status
 router.get('/status', requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.user._id)
+    const user = await User.findById(req.user._id || req.user.id)
       .select('deletionRequested deletionScheduledFor consentAcceptedAt');
     res.json({
       exclusaoPendente:     user?.deletionRequested || false,
@@ -23,7 +36,7 @@ router.get('/status', requireAuth, async (req, res) => {
 // GET /api/lgpd/meus-dados
 router.get('/meus-dados', requireAuth, async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user._id || req.user.id;
     const user   = await User.findById(userId).select('-passwordHash');
     const logs   = await AccessLog.find({ userId }).limit(100).sort({ timestamp: -1 }).catch(() => []);
 
@@ -63,7 +76,7 @@ router.get('/meus-dados', requireAuth, async (req, res) => {
 router.post('/solicitar-exclusao', requireAuth, async (req, res) => {
   try {
     const { motivo } = req.body;
-    await User.findByIdAndUpdate(req.user._id, {
+    await User.findByIdAndUpdate(req.user._id || req.user.id, {
       deletionRequested:    true,
       deletionRequestedAt:  new Date(),
       deletionMotivo:       motivo || 'Não informado',
@@ -81,7 +94,7 @@ router.post('/solicitar-exclusao', requireAuth, async (req, res) => {
 // POST /api/lgpd/cancelar-exclusao
 router.post('/cancelar-exclusao', requireAuth, async (req, res) => {
   try {
-    await User.findByIdAndUpdate(req.user._id, {
+    await User.findByIdAndUpdate(req.user._id || req.user.id, {
       deletionRequested:    false,
       deletionRequestedAt:  null,
       deletionMotivo:       null,
