@@ -1,21 +1,35 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 const { requireAuth } = require('../middleware/auth');
-const { AccessLog } = require('../middleware/logger');
+const { AccessLog }   = require('../middleware/logger');
 const mongoose = require('mongoose');
-const User = require('../models/User');
+const User     = require('../models/User');
 
-// GET /api/lgpd/meus-dados — exportar todos os dados do usuário
+// GET /api/lgpd/status
+router.get('/status', requireAuth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .select('deletionRequested deletionScheduledFor consentAcceptedAt');
+    res.json({
+      exclusaoPendente:     user?.deletionRequested || false,
+      exclusaoAgendadaPara: user?.deletionScheduledFor || null,
+      termoAceitoEm:        user?.consentAcceptedAt || null
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao verificar status.' });
+  }
+});
+
+// GET /api/lgpd/meus-dados
 router.get('/meus-dados', requireAuth, async (req, res) => {
   try {
     const userId = req.user._id;
-
-    const user = await User.findById(userId).select('-password');
-    const logs = await AccessLog.find({ userId }).limit(100).sort({ timestamp: -1 }).catch(() => []);
+    const user   = await User.findById(userId).select('-passwordHash');
+    const logs   = await AccessLog.find({ userId }).limit(100).sort({ timestamp: -1 }).catch(() => []);
 
     let clients = [], events = [];
     try { clients = await mongoose.model('Client').find({ userId }); } catch(e) {}
-    try { events  = await mongoose.model('Event').find({ userId }); } catch(e) {}
+    try { events  = await mongoose.model('Event').find({ userId }); }  catch(e) {}
 
     const dados = {
       exportadoEm: new Date().toISOString(),
@@ -25,7 +39,7 @@ router.get('/meus-dados', requireAuth, async (req, res) => {
         estudio:    user?.studioName,
         telefone:   user?.phone,
         documento:  user?.document,
-        plano:      user?.plan,
+        plano:      user?.subscription?.plan,
         cadastroEm: user?.createdAt
       },
       clientes:  clients,
@@ -45,21 +59,6 @@ router.get('/meus-dados', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/lgpd/status
-router.get('/status', requireAuth, async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id)
-      .select('deletionRequested deletionScheduledFor consentAcceptedAt');
-    res.json({
-      exclusaoPendente:     user?.deletionRequested || false,
-      exclusaoAgendadaPara: user?.deletionScheduledFor || null,
-      termoAceitoEm:        user?.consentAcceptedAt || null
-    });
-  } catch (err) {
-    res.status(500).json({ error: 'Erro ao verificar status.' });
-  }
-});
-
 // POST /api/lgpd/solicitar-exclusao
 router.post('/solicitar-exclusao', requireAuth, async (req, res) => {
   try {
@@ -72,7 +71,7 @@ router.post('/solicitar-exclusao', requireAuth, async (req, res) => {
     });
     res.json({
       message: 'Solicitação registrada.',
-      info: 'Sua conta será excluída em 30 dias. Você pode cancelar em Configurações.'
+      info: 'Sua conta será excluída em 30 dias. Você pode cancelar em Configurações → Privacidade.'
     });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao registrar solicitação.' });
@@ -101,7 +100,7 @@ router.post('/executar-exclusoes', async (req, res) => {
     return res.status(403).json({ error: 'Acesso negado.' });
   }
   try {
-    const agora = new Date();
+    const agora    = new Date();
     const usuarios = await User.find({
       deletionRequested:    true,
       deletionScheduledFor: { $lte: agora }
@@ -109,8 +108,8 @@ router.post('/executar-exclusoes', async (req, res) => {
     let excluidos = 0;
     for (const user of usuarios) {
       const uid = user._id;
-      try { await mongoose.model('Client').deleteMany({ userId: uid }); } catch(e) {}
-      try { await mongoose.model('Event').deleteMany({ userId: uid }); } catch(e) {}
+      try { await mongoose.model('Client').deleteMany({ userId: uid }); }  catch(e) {}
+      try { await mongoose.model('Event').deleteMany({ userId: uid }); }   catch(e) {}
       await AccessLog.deleteMany({ userId: uid });
       await User.findByIdAndDelete(uid);
       excluidos++;
