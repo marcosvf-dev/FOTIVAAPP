@@ -4,8 +4,12 @@ const express  = require('express');
 const cors     = require('cors');
 const mongoose = require('mongoose');
 const cron     = require('node-cron');
+const rateLimit = require('express-rate-limit');
+const helmet   = require('helmet');
 
 const app = express();
+
+app.use(helmet({ contentSecurityPolicy: false }));
 
 const origins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
@@ -20,6 +24,26 @@ app.use(cors({
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
   allowedHeaders: ['Content-Type','Authorization','stripe-signature','x-cron-secret'],
 }));
+
+const limiterGeral = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const limiterAuth = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+app.use('/api/', limiterGeral);
+app.use('/api/auth/login',    limiterAuth);
+app.use('/api/auth/register', limiterAuth);
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
 
@@ -49,8 +73,8 @@ app.use('/api/ads',          require('./routes/ads'));
 app.use('/api/gallery',      require('./routes/gallery'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
 
-app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.0.0', time: new Date() }));
-app.get('/api/',       (_, res) => res.json({ message: 'Fotiva API v3.0 — Stripe' }));
+app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0', time: new Date() }));
+app.get('/api/',       (_, res) => res.json({ message: 'Fotiva API v3.1 — Seguro' }));
 
 cron.schedule('0 2 * * *', async () => {
   const User = require('./models/User');
@@ -68,4 +92,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Fotiva API v3.0 na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Fotiva API v3.1 na porta ${PORT}`));
