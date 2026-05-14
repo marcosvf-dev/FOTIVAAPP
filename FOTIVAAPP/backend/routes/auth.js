@@ -13,66 +13,130 @@ const sanitize = (u) => ({
   studioName: u.studioName,
   phone: u.phone,
   profileImage: u.profileImage,
+  studioLogo: u.studioLogo,
+  document: u.document,
   isAdmin: u.isAdmin,
   subscription: {
-    plan:      u.subscription.plan,
-    status:    u.subscription.status,
+    plan:        u.subscription.plan,
+    status:      u.subscription.status,
     trialEndsAt: u.subscription.trialEndsAt,
-    expiresAt: u.subscription.expiresAt,
+    expiresAt:   u.subscription.expiresAt,
   },
 });
 
+const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+// POST /api/auth/register
 router.post('/register', async (req, res) => {
-  const { name, email, password, studioName } = req.body;
+  const { name, email, password, studioName, selectedPlan, consentAcceptedAt } = req.body;
+
   if (!name || !email || !password)
-    return res.status(400).json({ error: 'name, email e password são obrigatórios' });
-  if (await User.findOne({ email }))
-    return res.status(400).json({ error: 'Email já cadastrado' });
+    return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+
+  if (!isValidEmail(email))
+    return res.status(400).json({ error: 'Email inválido.' });
+
+  if (password.length < 6)
+    return res.status(400).json({ error: 'Senha deve ter pelo menos 6 caracteres.' });
+
+  if (!consentAcceptedAt)
+    return res.status(400).json({ error: 'Aceite dos termos é obrigatório.' });
+
+  const safeName   = String(name).trim().slice(0, 100);
+  const safeEmail  = String(email).trim().toLowerCase().slice(0, 200);
+  const safeStudio = String(studioName || '').trim().slice(0, 100);
+
+  if (await User.findOne({ email: safeEmail }))
+    return res.status(400).json({ error: 'Email já cadastrado.' });
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await User.create({ name, email, passwordHash, studioName: studioName || '' });
+
+  const user = await User.create({
+    name: safeName,
+    email: safeEmail,
+    passwordHash,
+    studioName: safeStudio,
+    consentAcceptedAt: consentAcceptedAt || new Date(),
+    consentVersion: '2.0',
+  });
+
   res.status(201).json({ token: sign(user._id), user: sanitize(user) });
 });
 
+// POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  const user = await User.findOne({ email });
-  if (!user || !(await bcrypt.compare(password, user.passwordHash)))
-    return res.status(401).json({ error: 'Email ou senha incorretos' });
+
+  if (!email || !password)
+    return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+
+  const safeEmail = String(email).trim().toLowerCase();
+  const user = await User.findOne({ email: safeEmail });
+
+  const dummyHash = '$2a$12$dummy.hash.to.prevent.timing.attack.on.user.enumeration';
+  const validPassword = user
+    ? await bcrypt.compare(password, user.passwordHash)
+    : await bcrypt.compare(password, dummyHash).then(() => false);
+
+  if (!user || !validPassword)
+    return res.status(401).json({ error: 'Email ou senha incorretos.' });
+
   res.json({ token: sign(user._id), user: sanitize(user) });
 });
 
+// POST /api/auth/auto-login
 router.post('/auto-login', async (req, res) => {
   try {
     const payload = jwt.verify(req.body.token, process.env.JWT_SECRET);
     const user = await User.findById(payload.id).select('-passwordHash');
-    if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
+    if (!user) return res.status(401).json({ error: 'Usuário não encontrado.' });
     res.json({ token: sign(user._id), user: sanitize(user) });
   } catch {
-    res.status(401).json({ error: 'Token inválido' });
+    res.status(401).json({ error: 'Token inválido.' });
   }
 });
 
+// GET /api/auth/me
 router.get('/me', auth, (req, res) => res.json(sanitize(req.user)));
 
+// PUT /api/auth/profile
 router.put('/profile', auth, async (req, res) => {
   const { name, studioName, phone, profileImage, studioLogo, document } = req.body;
-  const user = await User.findByIdAndUpdate(
-    req.user._id,
-    { name, studioName, phone, profileImage },
-    { new: true }
-  ).select('-passwordHash');
+
+  const safeName     = name       ? String(name).trim().slice(0, 100)      : undefined;
+  const safeStudio   = studioName !== undefined ? String(studioName).trim().slice(0, 100) : undefined;
+  const safePhone    = phone      ? String(phone).trim().slice(0, 20)      : undefined;
+  const safeDocument = document   ? String(document).trim().slice(0, 20)   : undefined;
+
+  const update = {};
+  if (safeName     !== undefined) update.name         = safeName;
+  if (safeStudio   !== undefined) update.studioName   = safeStudio;
+  if (safePhone    !== undefined) update.phone        = safePhone;
+  if (safeDocument !== undefined) update.document     = safeDocument;
+  if (profileImage !== undefined) update.profileImage = profileImage;
+  if (studioLogo   !== undefined) update.studioLogo   = studioLogo;
+
+  const user = await User.findByIdAndUpdate(req.user._id, update, { new: true }).select('-passwordHash');
   res.json(sanitize(user));
 });
 
+// PUT /api/auth/password
 router.put('/password', auth, async (req, res) => {
   const { current, newPassword } = req.body;
+
+  if (!current || !newPassword)
+    return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias.' });
+
+  if (newPassword.length < 6)
+    return res.status(400).json({ error: 'Nova senha deve ter pelo menos 6 caracteres.' });
+
   const user = await User.findById(req.user._id);
   if (!(await bcrypt.compare(current, user.passwordHash)))
-    return res.status(400).json({ error: 'Senha atual incorreta' });
+    return res.status(400).json({ error: 'Senha atual incorreta.' });
+
   user.passwordHash = await bcrypt.hash(newPassword, 12);
   await user.save();
-  res.json({ message: 'Senha alterada com sucesso' });
+  res.json({ message: 'Senha alterada com sucesso.' });
 });
 
 module.exports = router;
