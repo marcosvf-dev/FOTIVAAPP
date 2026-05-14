@@ -1,11 +1,11 @@
 require('express-async-errors');
 require('dotenv').config();
-const express  = require('express');
-const cors     = require('cors');
-const mongoose = require('mongoose');
-const cron     = require('node-cron');
+const express   = require('express');
+const cors      = require('cors');
+const mongoose  = require('mongoose');
+const cron      = require('node-cron');
 const rateLimit = require('express-rate-limit');
-const helmet   = require('helmet');
+const helmet    = require('helmet');
 
 const app = express();
 
@@ -26,19 +26,14 @@ app.use(cors({
 }));
 
 const limiterGeral = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
+  windowMs: 15 * 60 * 1000, max: 100,
   message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
-  standardHeaders: true,
-  legacyHeaders: false,
+  standardHeaders: true, legacyHeaders: false,
 });
-
 const limiterAuth = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 10,
+  windowMs: 15 * 60 * 1000, max: 10,
   message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
-  standardHeaders: true,
-  legacyHeaders: false,
+  standardHeaders: true, legacyHeaders: false,
 });
 
 app.use('/api/', limiterGeral);
@@ -46,7 +41,6 @@ app.use('/api/auth/login',    limiterAuth);
 app.use('/api/auth/register', limiterAuth);
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
-
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
@@ -62,6 +56,7 @@ app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/events',       require('./routes/events'));
 app.use('/api/payments',     require('./routes/payments'));
 app.use('/api/expenses',     require('./routes/expenses'));
+app.use('/api/reports',      require('./routes/reports'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/chat',         require('./routes/chat'));
 app.use('/api/push',         require('./routes/push'));
@@ -74,8 +69,8 @@ app.use('/api/ads',          require('./routes/ads'));
 app.use('/api/gallery',      require('./routes/gallery'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
 
-app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.1.0', time: new Date() }));
-app.get('/api/',       (_, res) => res.json({ message: 'Fotiva API v3.1 — Seguro' }));
+app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.1.0', time: new Date() }));
+app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.1 — Seguro' }));
 
 cron.schedule('0 2 * * *', async () => {
   const User = require('./models/User');
