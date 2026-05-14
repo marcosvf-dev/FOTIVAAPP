@@ -36,7 +36,7 @@ export default function Register() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
-      await register({ ...form, selectedPlan: plan, consentAcceptedAt: new Date().toISOString() });
+      await register({ ...form, selectedPlan: plan, consentAcceptedAt: new Date().toISOString(), consentVersion: '2.0' });
       if (plan !== 'starter') navigate('/assinatura');
       else navigate('/dashboard');
     } catch (err) {
@@ -79,15 +79,20 @@ export default function Register() {
               </div>
             ))}
 
+            {/* Checkbox LGPD — versão 2.0 */}
             <label style={{ display:'flex', alignItems:'flex-start', gap:12, cursor:'pointer', padding:'14px', marginBottom:16, background: consentAccepted ? 'rgba(232,119,34,0.08)' : '#1a1a1a', borderRadius:10, border:`1px solid ${consentAccepted ? '#E87722' : '#333'}` }}>
-              <input type="checkbox" checked={consentAccepted} onChange={e => setConsentAccepted(e.target.checked)}
-                style={{ width:18, height:18, marginTop:2, accentColor:'#E87722', flexShrink:0 }}/>
+              <input
+                type="checkbox"
+                checked={consentAccepted}
+                onChange={e => setConsentAccepted(e.target.checked)}
+                style={{ width:18, height:18, marginTop:2, accentColor:'#E87722', flexShrink:0 }}
+              />
               <span style={{ fontSize:13, color:'#ccc', lineHeight:1.6 }}>
                 Li e concordo com os{' '}
                 <a href="/termos" target="_blank" rel="noreferrer" style={{ color:'#E87722', textDecoration:'underline' }} onClick={e => e.stopPropagation()}>Termos de Uso</a>
                 {' '}e a{' '}
                 <a href="/termos" target="_blank" rel="noreferrer" style={{ color:'#E87722', textDecoration:'underline' }} onClick={e => e.stopPropagation()}>Política de Privacidade</a>
-                , incluindo o tratamento dos meus dados conforme a LGPD.
+                {' '}(v2.0), incluindo o tratamento dos meus dados conforme a LGPD e o direito de arrependimento de 7 dias.
               </span>
             </label>
 
@@ -140,7 +145,7 @@ export default function Register() {
                 ← Voltar
               </button>
               <button onClick={handleSubmit} disabled={loading}
-                style={{ flex:2, padding:'12px', borderRadius:10, background: plan==='starter' ? 'linear-gradient(135deg,#22C55E,#16A34A)' : plan==='pro' ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : 'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?.6:1 }}>
+                style={{ flex:2, padding:'12px', borderRadius:10, background: plan==='starter' ? 'linear-gradient(135deg,#22C55E,#16A34A)' : plan==='pro' ? 'linear-gradient(135deg,#7C3AED,#4C1D95)' : 'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading ? .6 : 1 }}>
                 {loading ? 'Criando conta...' : plan==='starter' ? '🚀 Criar conta grátis' : `💳 Criar conta e assinar ${chosenPlan?.name}`}
               </button>
             </div>
