@@ -61,6 +61,7 @@ app.use('/api/auth',         require('./routes/auth'));
 app.use('/api/clients',      require('./routes/clients'));
 app.use('/api/events',       require('./routes/events'));
 app.use('/api/payments',     require('./routes/payments'));
+app.use('/api/expenses',     require('./routes/expenses'));
 app.use('/api/dashboard',    require('./routes/dashboard'));
 app.use('/api/chat',         require('./routes/chat'));
 app.use('/api/push',         require('./routes/push'));
