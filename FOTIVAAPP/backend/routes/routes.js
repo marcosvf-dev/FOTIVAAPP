@@ -1,4 +1,5 @@
 const { gerarParcelas } = require('./installments');
+
 // ============ CLIENTS ============
 const clientRouter = require('express').Router();
 const { auth, requireActive } = require('../middleware/auth');
@@ -20,7 +21,9 @@ clientRouter.get('/:id', async (req, res) => {
   res.json(c);
 });
 clientRouter.put('/:id', async (req, res) => {
-  const c = await Client.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, req.body, { new: true });
+  const c = await Client.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id }, req.body, { new: true }
+  );
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
   res.json(c);
 });
@@ -46,7 +49,8 @@ eventRouter.get('/:id', async (req, res) => {
 });
 eventRouter.post('/', async (req, res) => {
   let { clientId, clientName, eventType, eventDate, location, status,
-        totalValue, amountPaid, installments, paymentType, notes } = req.body;
+        totalValue, amountPaid, installments, paymentType, notes,
+        dueDay, firstDueDate } = req.body;
 
   if (!clientId && clientName) {
     let c = await Client.findOne({ userId: req.user._id, name: new RegExp(clientName, 'i') });
@@ -56,14 +60,14 @@ eventRouter.post('/', async (req, res) => {
   if (!clientId) return res.status(400).json({ error: 'Cliente obrigatório' });
   if (!eventType) return res.status(400).json({ error: 'Tipo obrigatório' });
 
-  const { dueDay, firstDueDate } = req.body;
   const event = await Event.create({
     userId: req.user._id, clientId, clientName, eventType, eventDate,
-    location, status, totalValue: totalValue || 0, amountPaid: amountPaid || 0,
+    location, status: status || 'confirmado',
+    statusHistory: [{ status: status || 'confirmado', changedAt: new Date() }],
+    totalValue: totalValue || 0, amountPaid: amountPaid || 0,
     installments: installments || 1, paymentType: paymentType || 'pix',
     dueDay: dueDay || null, firstDueDate: firstDueDate || null, notes,
   });
-  // Gera parcelas automáticas
   if (event.installments > 1 && (event.dueDay || event.firstDueDate)) {
     event.installmentList = gerarParcelas(event);
     await event.save();
@@ -71,9 +75,29 @@ eventRouter.post('/', async (req, res) => {
   res.status(201).json(event);
 });
 eventRouter.put('/:id', async (req, res) => {
-  const e = await Event.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, req.body, { new: true });
+  const { status } = req.body;
+  const e = await Event.findOne({ _id: req.params.id, userId: req.user._id });
   if (!e) return res.status(404).json({ error: 'Evento não encontrado' });
+  if (status && status !== e.status) {
+    e.statusHistory = e.statusHistory || [];
+    e.statusHistory.push({ status, changedAt: new Date() });
+  }
+  Object.assign(e, req.body);
+  await e.save();
   res.json(e);
+});
+eventRouter.patch('/:id/status', auth, async (req, res) => {
+  const { status, note } = req.body;
+  const STATUS_VALIDOS = ['orcamento','contrato_enviado','sinal_recebido','confirmado','realizado','fotos_entregues','concluido','cancelado'];
+  if (!STATUS_VALIDOS.includes(status))
+    return res.status(400).json({ error: 'Status inválido.' });
+  const ev = await Event.findOne({ _id: req.params.id, userId: req.user._id });
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
+  ev.statusHistory = ev.statusHistory || [];
+  ev.statusHistory.push({ status, changedAt: new Date(), note: note || '' });
+  ev.status = status;
+  await ev.save();
+  res.json({ status: ev.status, statusHistory: ev.statusHistory });
 });
 eventRouter.delete('/:id', async (req, res) => {
   const e = await Event.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
@@ -122,10 +146,12 @@ dashRouter.get('/stats', async (req, res) => {
     Client.countDocuments({ userId: uid }),
   ]);
 
-  const monthRev  = events.filter(e => e.createdAt >= som).reduce((s,e) => s + (e.amountPaid||0), 0);
-  const pending   = events.reduce((s,e) => s + Math.max(0,(e.totalValue||0)-(e.amountPaid||0)), 0);
-  const upcoming  = events.filter(e => e.eventDate && new Date(e.eventDate) >= now)
-    .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate)).slice(0,5);
+  const monthRev = events.filter(e => e.createdAt >= som).reduce((s,e) => s + (e.amountPaid||0), 0);
+  const pending  = events.reduce((s,e) => s + Math.max(0,(e.totalValue||0)-(e.amountPaid||0)), 0);
+  const upcoming = events
+    .filter(e => e.eventDate && new Date(e.eventDate) >= now)
+    .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate))
+    .slice(0, 5);
 
   res.json({ totalRevenue: monthRev, totalEvents: upcoming.length,
     totalClients: clients, pendingPayments: pending, upcomingEvents: upcoming });
@@ -152,3 +178,91 @@ pushRouter.delete('/subscribe', auth, async (req, res) => {
 });
 
 module.exports.pushRouter = pushRouter;
+
+// ============ EXPENSES ============
+const mongoose = require('mongoose');
+
+const expenseSchema = new mongoose.Schema({
+  userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  description: { type: String, required: true },
+  amount:      { type: Number, required: true, min: 0 },
+  category:    { type: String, default: 'Outro' },
+  date:        { type: Date, default: Date.now },
+  eventId:     { type: mongoose.Schema.Types.ObjectId, ref: 'Event', default: null },
+  eventName:   { type: String, default: '' },
+  notes:       { type: String, default: '' },
+}, { timestamps: true });
+
+const Expense = mongoose.models.Expense || mongoose.model('Expense', expenseSchema);
+
+const expenseRouter = require('express').Router();
+expenseRouter.use(auth, requireActive);
+
+// GET /api/expenses
+expenseRouter.get('/', async (req, res) => {
+  const despesas = await Expense.find({ userId: req.user._id }).sort({ date: -1 });
+  res.json(despesas);
+});
+
+// POST /api/expenses
+expenseRouter.post('/', async (req, res) => {
+  const { description, amount, category, date, eventId, notes } = req.body;
+  if (!description) return res.status(400).json({ error: 'Descrição obrigatória.' });
+  if (!amount || amount <= 0) return res.status(400).json({ error: 'Valor deve ser maior que zero.' });
+
+  let eventName = '';
+  if (eventId) {
+    const ev = await Event.findOne({ _id: eventId, userId: req.user._id });
+    if (ev) eventName = `${ev.eventType} — ${ev.clientName}`;
+  }
+
+  const despesa = await Expense.create({
+    userId:      req.user._id,
+    description: String(description).trim().slice(0, 200),
+    amount:      parseFloat(amount),
+    category:    category || 'Outro',
+    date:        date     || new Date(),
+    eventId:     eventId  || null,
+    eventName,
+    notes:       String(notes || '').trim().slice(0, 500),
+  });
+  res.status(201).json(despesa);
+});
+
+// DELETE /api/expenses/:id
+expenseRouter.delete('/:id', async (req, res) => {
+  const d = await Expense.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+  if (!d) return res.status(404).json({ error: 'Despesa não encontrada.' });
+  res.json({ message: 'Despesa removida.' });
+});
+
+// GET /api/expenses/resumo
+expenseRouter.get('/resumo', async (req, res) => {
+  const agora  = new Date();
+  const inicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
+  const fim    = new Date(agora.getFullYear(), agora.getMonth() + 1, 0);
+
+  const [despesasMes, todasDespesas, eventosDoMes] = await Promise.all([
+    Expense.find({ userId: req.user._id, date: { $gte: inicio, $lte: fim } }),
+    Expense.find({ userId: req.user._id }),
+    Event.find({ userId: req.user._id }),
+  ]);
+
+  const receitaMes   = eventosDoMes.filter(e => {
+    const d = new Date(e.createdAt);
+    return d >= inicio && d <= fim;
+  }).reduce((s, e) => s + (e.amountPaid || 0), 0);
+
+  const despesaMes   = despesasMes.reduce((s, d) => s + d.amount, 0);
+  const despesaTotal = todasDespesas.reduce((s, d) => s + d.amount, 0);
+
+  const porCategoria = todasDespesas.reduce((acc, d) => {
+    acc[d.category] = (acc[d.category] || 0) + d.amount;
+    return acc;
+  }, {});
+
+  res.json({ receitaMes, despesaMes, lucroMes: receitaMes - despesaMes, despesaTotal, porCategoria });
+});
+
+module.exports.expenseRouter = expenseRouter;
+module.exports.Expense = Expense;
