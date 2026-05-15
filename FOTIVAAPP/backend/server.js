@@ -26,8 +26,9 @@ app.use(cors({
 }));
 
 app.use('/api/', rateLimit({ windowMs:15*60*1000, max:100, message:{ error:'Muitas requisições.' }, standardHeaders:true, legacyHeaders:false }));
-app.use('/api/auth/login',    rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
-app.use('/api/auth/register', rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/auth/login',           rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/auth/register',        rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/auth/forgot-password', rateLimit({ windowMs:60*60*1000, max:5,  message:{ error:'Muitas tentativas. Tente em 1 hora.' }, standardHeaders:true, legacyHeaders:false }));
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
 app.use(express.json({ limit: '10mb' }));
@@ -59,16 +60,25 @@ app.use('/api/gallery',      require('./routes/gallery'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
 app.use('/api/backup',       require('./routes/backup'));
 
-app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.2.0', time: new Date() }));
-app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.2' }));
+app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.3.0', time: new Date() }));
+app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.3' }));
 
 cron.schedule('0 2 * * *', async () => {
-  const User   = require('./models/User');
+  const User = require('./models/User');
   const result = await User.updateMany(
     { 'subscription.status': 'active', 'subscription.expiresAt': { $lt: new Date() } },
     { $set: { 'subscription.status': 'expired', 'subscription.plan': 'free' } }
   );
   if (result.modifiedCount > 0) console.log(`⏰ ${result.modifiedCount} assinaturas expiradas`);
+});
+
+cron.schedule('0 4 * * *', async () => {
+  const User = require('./models/User');
+  const result = await User.updateMany(
+    { resetPasswordExpires: { $lt: new Date() }, resetPasswordToken: { $ne: null } },
+    { $set: { resetPasswordToken: null, resetPasswordExpires: null } }
+  );
+  if (result.modifiedCount > 0) console.log(`🧹 ${result.modifiedCount} tokens de reset limpos`);
 });
 
 app.use((err, req, res, next) => {
@@ -85,4 +95,4 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Fotiva API v3.2 na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Fotiva API v3.3 na porta ${PORT}`));
