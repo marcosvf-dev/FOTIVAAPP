@@ -1,6 +1,5 @@
-const router   = require('express').Router();
-const { exec } = require('child_process');
-const fs       = require('fs');
+const router = require('express').Router();
+const mongoose = require('mongoose');
 
 router.post('/backup', async (req, res) => {
   const secret = req.headers['x-cron-secret'];
@@ -8,35 +7,42 @@ router.post('/backup', async (req, res) => {
     return res.status(403).json({ error: 'Acesso negado.' });
 
   try {
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0,19);
-    const filename  = `fotiva-backup-${timestamp}.gz`;
-    const tmpPath   = `/tmp/${filename}`;
-
-    await new Promise((resolve, reject) => {
-      exec(
-        `mongodump --uri="${process.env.MONGO_URL}" --db="${process.env.DB_NAME || 'fotiva'}" --gzip --archive="${tmpPath}"`,
-        (err, stdout, stderr) => err ? reject(new Error(stderr || err.message)) : resolve()
-      );
-    });
-
     const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+
+    // Exporta todas as collections via mongoose
+    const db = mongoose.connection.db;
+    const collections = await db.listCollections().toArray();
+    const backup = {};
+
+    for (const col of collections) {
+      const docs = await db.collection(col.name).find({}).toArray();
+      backup[col.name] = docs;
+    }
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename  = `fotiva-backup-${timestamp}.json`;
+    const content   = JSON.stringify(backup, null, 2);
+
     const client = new S3Client({
       endpoint:    'https://s3.us-west-004.backblazeb2.com',
       region:      'us-west-004',
-      credentials: { accessKeyId: process.env.B2_KEY_ID, secretAccessKey: process.env.B2_APP_KEY },
+      credentials: {
+        accessKeyId:     process.env.B2_KEY_ID,
+        secretAccessKey: process.env.B2_APP_KEY,
+      },
     });
 
     await client.send(new PutObjectCommand({
       Bucket:      'fotiva-backups',
       Key:         `backups/${filename}`,
-      Body:        fs.readFileSync(tmpPath),
-      ContentType: 'application/gzip',
+      Body:        Buffer.from(content),
+      ContentType: 'application/json',
     }));
 
-    fs.unlinkSync(tmpPath);
-    res.json({ ok: true, filename, timestamp: new Date().toISOString() });
+    console.log(`✅ Backup: ${filename} (${collections.length} collections)`);
+    res.json({ ok: true, filename, collections: collections.length });
   } catch (e) {
-    console.error('❌ Erro no backup:', e.message);
+    console.error('❌ Backup erro:', e.message);
     res.status(500).json({ error: e.message });
   }
 });
