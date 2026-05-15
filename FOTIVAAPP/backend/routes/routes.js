@@ -1,32 +1,104 @@
 const { gerarParcelas } = require('./installments');
+const mongoose = require('mongoose');
 
 // ============ CLIENTS ============
 const clientRouter = require('express').Router();
-const { auth, requireActive } = require('../middleware/auth');
+const { auth, requireActive, checkClientLimit } = require('../middleware/auth');
 const { Client, Event } = require('../models/models');
+
+function normalizar(str) {
+  return (str || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim();
+}
 
 clientRouter.use(auth, requireActive);
 
+// GET /api/clients?search=&page=1&limit=50
 clientRouter.get('/', async (req, res) => {
-  res.json(await Client.find({ userId: req.user._id }).sort({ name: 1 }));
+  const { search = '', page = 1, limit = 50 } = req.query;
+  const skip = (parseInt(page) - 1) * parseInt(limit);
+  const uid  = req.user._id;
+
+  let query = { userId: uid };
+
+  if (search.trim()) {
+    const norm = normalizar(search);
+    const raw  = search.replace(/\D/g, '');
+    query.$or = [
+      { nameNorm: { $regex: norm, $options: 'i' } },
+      { name:     { $regex: search, $options: 'i' } },
+      { email:    { $regex: search, $options: 'i' } },
+      ...(raw ? [{ phone: { $regex: raw, $options: 'i' } }, { cpf: { $regex: raw, $options: 'i' } }] : []),
+    ];
+  }
+
+  const [clients, total] = await Promise.all([
+    Client.find(query).sort({ name: 1 }).skip(skip).limit(parseInt(limit)),
+    Client.countDocuments(query),
+  ]);
+
+  res.json({
+    clients,
+    pagination: {
+      page:    parseInt(page),
+      limit:   parseInt(limit),
+      total,
+      pages:   Math.ceil(total / parseInt(limit)),
+      hasMore: skip + clients.length < total,
+    },
+  });
 });
-clientRouter.post('/', require('../middleware/auth').checkClientLimit, async (req, res) => {
-  const { name, phone, email, notes } = req.body;
+
+clientRouter.post('/', checkClientLimit, async (req, res) => {
+  const { name, phone, email, cpf, address, city, state, complement, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
-  res.status(201).json(await Client.create({ userId: req.user._id, name, phone, email, notes }));
+  const client = await Client.create({
+    userId:     req.user._id,
+    name:       name.trim(),
+    nameNorm:   normalizar(name),
+    phone:      phone      || '',
+    email:      email      || '',
+    cpf:        cpf        || '',
+    address:    address    || '',
+    city:       city       || '',
+    state:      state      || '',
+    complement: complement || '',
+    notes:      notes      || '',
+  });
+  res.status(201).json(client);
 });
+
 clientRouter.get('/:id', async (req, res) => {
   const c = await Client.findOne({ _id: req.params.id, userId: req.user._id });
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
   res.json(c);
 });
+
 clientRouter.put('/:id', async (req, res) => {
+  const { name, phone, email, cpf, address, city, state, complement, notes } = req.body;
+  const update = {};
+  if (name       !== undefined) { update.name = name.trim(); update.nameNorm = normalizar(name); }
+  if (phone      !== undefined) update.phone      = phone;
+  if (email      !== undefined) update.email      = email;
+  if (cpf        !== undefined) update.cpf        = cpf;
+  if (address    !== undefined) update.address    = address;
+  if (city       !== undefined) update.city       = city;
+  if (state      !== undefined) update.state      = state;
+  if (complement !== undefined) update.complement = complement;
+  if (notes      !== undefined) update.notes      = notes;
+
   const c = await Client.findOneAndUpdate(
-    { _id: req.params.id, userId: req.user._id }, req.body, { new: true }
+    { _id: req.params.id, userId: req.user._id },
+    update,
+    { new: true }
   );
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
   res.json(c);
 });
+
 clientRouter.delete('/:id', async (req, res) => {
   const c = await Client.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
@@ -42,11 +114,13 @@ eventRouter.use(auth, requireActive);
 eventRouter.get('/', async (req, res) => {
   res.json(await Event.find({ userId: req.user._id }).sort({ eventDate: 1 }));
 });
+
 eventRouter.get('/:id', async (req, res) => {
   const e = await Event.findOne({ _id: req.params.id, userId: req.user._id });
   if (!e) return res.status(404).json({ error: 'Evento não encontrado' });
   res.json(e);
 });
+
 eventRouter.post('/', async (req, res) => {
   let { clientId, clientName, eventType, eventDate, location, status,
         totalValue, amountPaid, installments, paymentType, notes,
@@ -54,7 +128,7 @@ eventRouter.post('/', async (req, res) => {
 
   if (!clientId && clientName) {
     let c = await Client.findOne({ userId: req.user._id, name: new RegExp(clientName, 'i') });
-    if (!c) c = await Client.create({ userId: req.user._id, name: clientName });
+    if (!c) c = await Client.create({ userId: req.user._id, name: clientName, nameNorm: normalizar(clientName) });
     clientId = c._id; clientName = c.name;
   }
   if (!clientId) return res.status(400).json({ error: 'Cliente obrigatório' });
@@ -68,12 +142,14 @@ eventRouter.post('/', async (req, res) => {
     installments: installments || 1, paymentType: paymentType || 'pix',
     dueDay: dueDay || null, firstDueDate: firstDueDate || null, notes,
   });
+
   if (event.installments > 1 && (event.dueDay || event.firstDueDate)) {
     event.installmentList = gerarParcelas(event);
     await event.save();
   }
   res.status(201).json(event);
 });
+
 eventRouter.put('/:id', async (req, res) => {
   const { status } = req.body;
   const e = await Event.findOne({ _id: req.params.id, userId: req.user._id });
@@ -86,7 +162,8 @@ eventRouter.put('/:id', async (req, res) => {
   await e.save();
   res.json(e);
 });
-eventRouter.patch('/:id/status', auth, async (req, res) => {
+
+eventRouter.patch('/:id/status', async (req, res) => {
   const { status, note } = req.body;
   const STATUS_VALIDOS = ['orcamento','contrato_enviado','sinal_recebido','confirmado','realizado','fotos_entregues','concluido','cancelado'];
   if (!STATUS_VALIDOS.includes(status))
@@ -99,6 +176,25 @@ eventRouter.patch('/:id/status', auth, async (req, res) => {
   await ev.save();
   res.json({ status: ev.status, statusHistory: ev.statusHistory });
 });
+
+// POST /api/events/:id/signature — salva assinatura digital
+eventRouter.post('/:id/signature', async (req, res) => {
+  const { signature, contractNumber, signedAt } = req.body;
+  if (!signature) return res.status(400).json({ error: 'Assinatura obrigatória' });
+  const ev = await Event.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    { $set: {
+      'contract.signature':      signature,
+      'contract.number':         contractNumber,
+      'contract.signedAt':       signedAt || new Date(),
+      'contract.signedByClient': true,
+    }},
+    { new: true }
+  );
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
+  res.json({ ok: true, signedAt: ev.contract?.signedAt });
+});
+
 eventRouter.delete('/:id', async (req, res) => {
   const e = await Event.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
   if (!e) return res.status(404).json({ error: 'Evento não encontrado' });
@@ -121,6 +217,7 @@ payRouter.get('/', async (req, res) => {
     status: e.amountPaid >= e.totalValue ? 'pago' : e.amountPaid > 0 ? 'parcial' : 'pendente',
   })));
 });
+
 payRouter.patch('/:id/pay', async (req, res) => {
   const { amount } = req.body;
   const e = await Event.findOne({ _id: req.params.id, userId: req.user._id });
@@ -137,9 +234,9 @@ const dashRouter = require('express').Router();
 dashRouter.use(auth, requireActive);
 
 dashRouter.get('/stats', async (req, res) => {
-  const now  = new Date();
-  const som  = new Date(now.getFullYear(), now.getMonth(), 1);
-  const uid  = req.user._id;
+  const now = new Date();
+  const som = new Date(now.getFullYear(), now.getMonth(), 1);
+  const uid = req.user._id;
 
   const [events, clients] = await Promise.all([
     Event.find({ userId: uid }),
@@ -180,8 +277,6 @@ pushRouter.delete('/subscribe', auth, async (req, res) => {
 module.exports.pushRouter = pushRouter;
 
 // ============ EXPENSES ============
-const mongoose = require('mongoose');
-
 const expenseSchema = new mongoose.Schema({
   userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
   description: { type: String, required: true },
@@ -198,13 +293,11 @@ const Expense = mongoose.models.Expense || mongoose.model('Expense', expenseSche
 const expenseRouter = require('express').Router();
 expenseRouter.use(auth, requireActive);
 
-// GET /api/expenses
 expenseRouter.get('/', async (req, res) => {
   const despesas = await Expense.find({ userId: req.user._id }).sort({ date: -1 });
   res.json(despesas);
 });
 
-// POST /api/expenses
 expenseRouter.post('/', async (req, res) => {
   const { description, amount, category, date, eventId, notes } = req.body;
   if (!description) return res.status(400).json({ error: 'Descrição obrigatória.' });
@@ -229,14 +322,12 @@ expenseRouter.post('/', async (req, res) => {
   res.status(201).json(despesa);
 });
 
-// DELETE /api/expenses/:id
 expenseRouter.delete('/:id', async (req, res) => {
   const d = await Expense.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
   if (!d) return res.status(404).json({ error: 'Despesa não encontrada.' });
   res.json({ message: 'Despesa removida.' });
 });
 
-// GET /api/expenses/resumo
 expenseRouter.get('/resumo', async (req, res) => {
   const agora  = new Date();
   const inicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
@@ -248,7 +339,7 @@ expenseRouter.get('/resumo', async (req, res) => {
     Event.find({ userId: req.user._id }),
   ]);
 
-  const receitaMes   = eventosDoMes.filter(e => {
+  const receitaMes = eventosDoMes.filter(e => {
     const d = new Date(e.createdAt);
     return d >= inicio && d <= fim;
   }).reduce((s, e) => s + (e.amountPaid || 0), 0);
