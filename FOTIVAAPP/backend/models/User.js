@@ -10,18 +10,11 @@ const userSchema = new mongoose.Schema({
   studioLogo:   { type: String, default: '' },
   document:     { type: String, default: '' },
   isAdmin:      { type: Boolean, default: false },
-
   tokenVersion: { type: Number, default: 0 },
-
-  // Recuperação de senha
   resetPasswordToken:   { type: String, default: null },
   resetPasswordExpires: { type: Date,   default: null },
-
-  // Numeração sequencial de contratos
-  contractCounter: { type: Number, default: 0 },
-
-  oneSignalPlayerId: { type: String, default: null },
-
+  contractCounter:      { type: Number, default: 0 },
+  oneSignalPlayerId:    { type: String, default: null },
   subscription: {
     plan:             { type: String, enum: ['free','starter','normal','pro'], default: 'free' },
     status:           { type: String, enum: ['trial','active','expired','cancelled'], default: 'trial' },
@@ -31,11 +24,9 @@ const userSchema = new mongoose.Schema({
     stripeSubId:      { type: String, default: null },
     lastPayment:      { type: Date, default: null },
   },
-
   pushSubscription:  { type: Object, default: null },
   whatsappPhone:     { type: String, default: '' },
   whatsappApiKey:    { type: String, default: '' },
-
   consentAcceptedAt:    { type: Date,    default: null },
   consentVersion:       { type: String,  default: null },
   deletionRequested:    { type: Boolean, default: false },
@@ -49,17 +40,6 @@ userSchema.index({ 'subscription.stripeCustomerId': 1 });
 userSchema.index({ 'subscription.status': 1 });
 userSchema.index({ deletionRequested: 1, deletionScheduledFor: 1 });
 userSchema.index({ resetPasswordToken: 1 });
-
-userSchema.methods.nextContractNumber = async function() {
-  const user = await this.constructor.findByIdAndUpdate(
-    this._id,
-    { $inc: { contractCounter: 1 } },
-    { new: true }
-  );
-  const year = new Date().getFullYear();
-  const num  = String(user.contractCounter).padStart(3, '0');
-  return `${num}/${year}`;
-};
 
 userSchema.virtual('isActive').get(function() {
   const s = this.subscription;
