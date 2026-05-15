@@ -6,6 +6,7 @@ const clientRouter = require('express').Router();
 const { auth, requireActive, checkClientLimit } = require('../middleware/auth');
 const { Client, Event } = require('../models/models');
 
+// Normaliza string removendo acentos — busca "joao" encontra "João"
 function normalizar(str) {
   return (str || '')
     .toLowerCase()
@@ -16,11 +17,13 @@ function normalizar(str) {
 
 clientRouter.use(auth, requireActive);
 
+// GET /api/clients?search=&page=1&limit=20
 clientRouter.get('/', async (req, res) => {
   const { search = '', page = 1, limit = 50 } = req.query;
   const skip = (parseInt(page) - 1) * parseInt(limit);
   const uid  = req.user._id;
-  let query  = { userId: uid };
+
+  let query = { userId: uid };
 
   if (search.trim()) {
     const norm = normalizar(search);
@@ -41,8 +44,10 @@ clientRouter.get('/', async (req, res) => {
   res.json({
     clients,
     pagination: {
-      page: parseInt(page), limit: parseInt(limit), total,
-      pages: Math.ceil(total / parseInt(limit)),
+      page:    parseInt(page),
+      limit:   parseInt(limit),
+      total,
+      pages:   Math.ceil(total / parseInt(limit)),
       hasMore: skip + clients.length < total,
     },
   });
@@ -52,10 +57,17 @@ clientRouter.post('/', checkClientLimit, async (req, res) => {
   const { name, phone, email, cpf, address, city, state, complement, notes } = req.body;
   if (!name) return res.status(400).json({ error: 'Nome obrigatório' });
   const client = await Client.create({
-    userId: req.user._id, name: name.trim(), nameNorm: normalizar(name),
-    phone: phone || '', email: email || '', cpf: cpf || '',
-    address: address || '', city: city || '', state: state || '',
-    complement: complement || '', notes: notes || '',
+    userId: req.user._id,
+    name:     name.trim(),
+    nameNorm: normalizar(name),
+    phone:    phone      || '',
+    email:    email      || '',
+    cpf:      cpf        || '',
+    address:  address    || '',
+    city:     city       || '',
+    state:    state      || '',
+    complement: complement || '',
+    notes:    notes      || '',
   });
   res.status(201).json(client);
 });
@@ -78,7 +90,12 @@ clientRouter.put('/:id', async (req, res) => {
   if (state      !== undefined) update.state      = state;
   if (complement !== undefined) update.complement = complement;
   if (notes      !== undefined) update.notes      = notes;
-  const c = await Client.findOneAndUpdate({ _id: req.params.id, userId: req.user._id }, update, { new: true });
+
+  const c = await Client.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    update,
+    { new: true }
+  );
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
   res.json(c);
 });
@@ -107,7 +124,8 @@ eventRouter.get('/:id', async (req, res) => {
 
 eventRouter.post('/', async (req, res) => {
   let { clientId, clientName, eventType, eventDate, location, status,
-        totalValue, amountPaid, installments, paymentType, notes, dueDay, firstDueDate } = req.body;
+        totalValue, amountPaid, installments, paymentType, notes,
+        dueDay, firstDueDate } = req.body;
 
   if (!clientId && clientName) {
     let c = await Client.findOne({ userId: req.user._id, name: new RegExp(clientName, 'i') });
@@ -149,7 +167,8 @@ eventRouter.put('/:id', async (req, res) => {
 eventRouter.patch('/:id/status', async (req, res) => {
   const { status, note } = req.body;
   const STATUS_VALIDOS = ['orcamento','contrato_enviado','sinal_recebido','confirmado','realizado','fotos_entregues','concluido','cancelado'];
-  if (!STATUS_VALIDOS.includes(status)) return res.status(400).json({ error: 'Status inválido.' });
+  if (!STATUS_VALIDOS.includes(status))
+    return res.status(400).json({ error: 'Status inválido.' });
   const ev = await Event.findOne({ _id: req.params.id, userId: req.user._id });
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
   ev.statusHistory = ev.statusHistory || [];
@@ -159,14 +178,17 @@ eventRouter.patch('/:id/status', async (req, res) => {
   res.json({ status: ev.status, statusHistory: ev.statusHistory });
 });
 
+// POST /api/events/:id/signature — salva assinatura digital do contrato
 eventRouter.post('/:id/signature', async (req, res) => {
   const { signature, contractNumber, signedAt } = req.body;
   if (!signature) return res.status(400).json({ error: 'Assinatura obrigatória' });
   const ev = await Event.findOneAndUpdate(
     { _id: req.params.id, userId: req.user._id },
     { $set: {
-      'contract.signature': signature, 'contract.number': contractNumber,
-      'contract.signedAt': signedAt || new Date(), 'contract.signedByClient': true,
+      'contract.signature':      signature,
+      'contract.number':         contractNumber,
+      'contract.signedAt':       signedAt || new Date(),
+      'contract.signedByClient': true,
     }},
     { new: true }
   );
@@ -213,20 +235,24 @@ const dashRouter = require('express').Router();
 dashRouter.use(auth, requireActive);
 
 dashRouter.get('/stats', async (req, res) => {
-  const now = new Date();
-  const som = new Date(now.getFullYear(), now.getMonth(), 1);
-  const uid = req.user._id;
+  const now  = new Date();
+  const som  = new Date(now.getFullYear(), now.getMonth(), 1);
+  const uid  = req.user._id;
+
   const [events, clients] = await Promise.all([
     Event.find({ userId: uid }),
     Client.countDocuments({ userId: uid }),
   ]);
+
   const monthRev = events.filter(e => e.createdAt >= som).reduce((s,e) => s + (e.amountPaid||0), 0);
   const pending  = events.reduce((s,e) => s + Math.max(0,(e.totalValue||0)-(e.amountPaid||0)), 0);
   const upcoming = events
     .filter(e => e.eventDate && new Date(e.eventDate) >= now)
     .sort((a,b) => new Date(a.eventDate) - new Date(b.eventDate))
     .slice(0, 5);
-  res.json({ totalRevenue: monthRev, totalEvents: upcoming.length, totalClients: clients, pendingPayments: pending, upcomingEvents: upcoming });
+
+  res.json({ totalRevenue: monthRev, totalEvents: upcoming.length,
+    totalClients: clients, pendingPayments: pending, upcomingEvents: upcoming });
 });
 
 module.exports.dashRouter = dashRouter;
@@ -264,28 +290,35 @@ const expenseSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const Expense = mongoose.models.Expense || mongoose.model('Expense', expenseSchema);
+
 const expenseRouter = require('express').Router();
 expenseRouter.use(auth, requireActive);
 
 expenseRouter.get('/', async (req, res) => {
-  res.json(await Expense.find({ userId: req.user._id }).sort({ date: -1 }));
+  const despesas = await Expense.find({ userId: req.user._id }).sort({ date: -1 });
+  res.json(despesas);
 });
 
 expenseRouter.post('/', async (req, res) => {
   const { description, amount, category, date, eventId, notes } = req.body;
   if (!description) return res.status(400).json({ error: 'Descrição obrigatória.' });
   if (!amount || amount <= 0) return res.status(400).json({ error: 'Valor deve ser maior que zero.' });
+
   let eventName = '';
   if (eventId) {
     const ev = await Event.findOne({ _id: eventId, userId: req.user._id });
     if (ev) eventName = `${ev.eventType} — ${ev.clientName}`;
   }
+
   const despesa = await Expense.create({
-    userId: req.user._id,
+    userId:      req.user._id,
     description: String(description).trim().slice(0, 200),
-    amount: parseFloat(amount), category: category || 'Outro',
-    date: date || new Date(), eventId: eventId || null, eventName,
-    notes: String(notes || '').trim().slice(0, 500),
+    amount:      parseFloat(amount),
+    category:    category || 'Outro',
+    date:        date     || new Date(),
+    eventId:     eventId  || null,
+    eventName,
+    notes:       String(notes || '').trim().slice(0, 500),
   });
   res.status(201).json(despesa);
 });
@@ -300,17 +333,26 @@ expenseRouter.get('/resumo', async (req, res) => {
   const agora  = new Date();
   const inicio = new Date(agora.getFullYear(), agora.getMonth(), 1);
   const fim    = new Date(agora.getFullYear(), agora.getMonth() + 1, 0);
+
   const [despesasMes, todasDespesas, eventosDoMes] = await Promise.all([
     Expense.find({ userId: req.user._id, date: { $gte: inicio, $lte: fim } }),
     Expense.find({ userId: req.user._id }),
     Event.find({ userId: req.user._id }),
   ]);
+
   const receitaMes = eventosDoMes.filter(e => {
-    const d = new Date(e.createdAt); return d >= inicio && d <= fim;
+    const d = new Date(e.createdAt);
+    return d >= inicio && d <= fim;
   }).reduce((s, e) => s + (e.amountPaid || 0), 0);
+
   const despesaMes   = despesasMes.reduce((s, d) => s + d.amount, 0);
   const despesaTotal = todasDespesas.reduce((s, d) => s + d.amount, 0);
-  const porCategoria = todasDespesas.reduce((acc, d) => { acc[d.category] = (acc[d.category] || 0) + d.amount; return acc; }, {});
+
+  const porCategoria = todasDespesas.reduce((acc, d) => {
+    acc[d.category] = (acc[d.category] || 0) + d.amount;
+    return acc;
+  }, {});
+
   res.json({ receitaMes, despesaMes, lucroMes: receitaMes - despesaMes, despesaTotal, porCategoria });
 });
 
