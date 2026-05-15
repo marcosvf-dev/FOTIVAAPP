@@ -55,7 +55,7 @@ router.post('/', auth, async (req, res) => {
 
   if (!eventType) return res.status(400).json({ error: 'Tipo de evento obrigatório' });
 
-  let finalClientId = clientId;
+  let finalClientId   = clientId;
   let finalClientName = clientName;
 
   if (!clientId && clientName) {
@@ -77,9 +77,9 @@ router.post('/', auth, async (req, res) => {
   );
 
   const ev = await Event.create({
-    userId: req.user._id,
-    clientId: finalClientId,
-    clientName: finalClientName,
+    userId:      req.user._id,
+    clientId:    finalClientId,
+    clientName:  finalClientName,
     eventType,
     eventDate:   eventDate   || null,
     location:    location    || '',
@@ -182,6 +182,28 @@ router.patch('/:id/installments/:installmentId', auth, async (req, res) => {
 
   await ev.save();
   res.json(ev);
+});
+
+// POST /api/events/:id/signature — salva assinatura digital do contrato
+router.post('/:id/signature', auth, async (req, res) => {
+  const { signature, contractNumber, signedAt } = req.body;
+  if (!signature) return res.status(400).json({ error: 'Assinatura obrigatória' });
+
+  const ev = await Event.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    {
+      $set: {
+        'contract.signature':      signature,
+        'contract.number':         contractNumber,
+        'contract.signedAt':       signedAt || new Date(),
+        'contract.signedByClient': true,
+      },
+    },
+    { new: true }
+  );
+
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
+  res.json({ ok: true, signedAt: ev.contract?.signedAt });
 });
 
 // DELETE /api/events/:id
