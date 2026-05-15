@@ -21,6 +21,57 @@ import Parceiros         from './pages/Parceiros';
 import GaleriaCliente    from './pages/GaleriaCliente';
 import TermosPrivacidade from './pages/TermosPrivacidade';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error('[ErrorBoundary]', error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          minHeight:'100vh', background:'#080808', display:'flex',
+          alignItems:'center', justifyContent:'center', flexDirection:'column',
+          gap:20, padding:24, fontFamily:'Inter, sans-serif'
+        }}>
+          <div style={{ fontSize:48 }}>⚠️</div>
+          <div style={{ color:'#fff', fontSize:20, fontWeight:700, textAlign:'center' }}>
+            Algo deu errado
+          </div>
+          <div style={{ color:'#666', fontSize:14, textAlign:'center', maxWidth:400 }}>
+            Ocorreu um erro inesperado. Tente recarregar a página.
+          </div>
+          <div style={{ display:'flex', gap:12 }}>
+            <button onClick={() => window.location.reload()}
+              style={{ padding:'10px 24px', borderRadius:10, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              🔄 Recarregar
+            </button>
+            <button onClick={() => { this.setState({ hasError:false }); window.location.href='/dashboard'; }}
+              style={{ padding:'10px 24px', borderRadius:10, background:'rgba(255,255,255,.06)', color:'#aaa', border:'1px solid rgba(255,255,255,.1)', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              🏠 Ir para o início
+            </button>
+          </div>
+          {process.env.NODE_ENV === 'development' && this.state.error && (
+            <pre style={{ background:'#1a1a1a', color:'#EF4444', padding:16, borderRadius:8, fontSize:11, maxWidth:600, overflow:'auto', maxHeight:200, border:'1px solid #333' }}>
+              {this.state.error.toString()}
+            </pre>
+          )}
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 function Private({ children, requireSub = true }) {
   const { user, loading } = useAuth();
   if (loading) return (
@@ -30,7 +81,7 @@ function Private({ children, requireSub = true }) {
   );
   if (!user) return <Navigate to="/login" replace />;
   if (requireSub) {
-    const s = user.subscription;
+    const s   = user.subscription;
     const now = new Date();
     const active = s?.status==='active' || (s?.status==='trial' && new Date(s?.trialEndsAt) > now);
     if (!active) return <Navigate to="/assinatura" replace />;
@@ -40,34 +91,36 @@ function Private({ children, requireSub = true }) {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login"    element={<Login />} />
-          <Route path="/cadastro" element={<Register />} />
-          <Route path="/termos"   element={<TermosPrivacidade />} />
-          <Route path="/galeria/:id" element={<GaleriaCliente />} />
-          <Route path="/admin"    element={<Admin />} />
-          <Route path="/pagamento/sucesso"  element={<PagamentoRetorno />} />
-          <Route path="/pagamento/falha"    element={<PagamentoRetorno />} />
-          <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
-          <Route path="/assinatura" element={<Private requireSub={false}><Assinatura /></Private>} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
-          <Route path="/dashboard"          element={<Private><Dashboard /></Private>} />
-          <Route path="/eventos"            element={<Private><Eventos /></Private>} />
-          <Route path="/eventos/novo"       element={<Private><NovoEvento /></Private>} />
-          <Route path="/eventos/editar/:id" element={<Private><EditarEvento /></Private>} />
-          <Route path="/clientes"           element={<Private><Clientes /></Private>} />
-          <Route path="/clientes/novo"      element={<Private><NovoCliente /></Private>} />
-          <Route path="/agenda"             element={<Private><Agenda /></Private>} />
-          <Route path="/pagamentos"         element={<Private><Pagamentos /></Private>} />
-          <Route path="/configuracoes"      element={<Private><Configuracoes /></Private>} />
-          <Route path="/galerias"           element={<Private><Galerias /></Private>} />
-          <Route path="/parceiros"          element={<Private><Parceiros /></Private>} />
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-        <Toaster position="top-right" toastOptions={{ style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' } }}/>
-      </BrowserRouter>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/login"    element={<Login />} />
+            <Route path="/cadastro" element={<Register />} />
+            <Route path="/termos"   element={<TermosPrivacidade />} />
+            <Route path="/galeria/:id" element={<GaleriaCliente />} />
+            <Route path="/admin"    element={<Admin />} />
+            <Route path="/pagamento/sucesso"  element={<PagamentoRetorno />} />
+            <Route path="/pagamento/falha"    element={<PagamentoRetorno />} />
+            <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
+            <Route path="/assinatura" element={<Private requireSub={false}><Assinatura /></Private>} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/dashboard"          element={<Private><Dashboard /></Private>} />
+            <Route path="/eventos"            element={<Private><Eventos /></Private>} />
+            <Route path="/eventos/novo"       element={<Private><NovoEvento /></Private>} />
+            <Route path="/eventos/editar/:id" element={<Private><EditarEvento /></Private>} />
+            <Route path="/clientes"           element={<Private><Clientes /></Private>} />
+            <Route path="/clientes/novo"      element={<Private><NovoCliente /></Private>} />
+            <Route path="/agenda"             element={<Private><Agenda /></Private>} />
+            <Route path="/pagamentos"         element={<Private><Pagamentos /></Private>} />
+            <Route path="/configuracoes"      element={<Private><Configuracoes /></Private>} />
+            <Route path="/galerias"           element={<Private><Galerias /></Private>} />
+            <Route path="/parceiros"          element={<Private><Parceiros /></Private>} />
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+          <Toaster position="top-right" toastOptions={{ style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' } }}/>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
