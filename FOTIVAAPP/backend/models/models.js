@@ -11,6 +11,10 @@ const clientSchema = new mongoose.Schema({
   notes:    { type: String, default: '' },
 }, { timestamps: true });
 
+clientSchema.index({ userId: 1, name: 1 });
+clientSchema.index({ userId: 1, email: 1 });
+clientSchema.index({ userId: 1, createdAt: -1 });
+
 const installmentSchema = new mongoose.Schema({
   number:  { type: Number, required: true },
   total:   { type: Number, required: true },
@@ -49,6 +53,13 @@ const eventSchema = new mongoose.Schema({
   installmentList: [installmentSchema],
   notes:           { type: String, default: '' },
 }, { timestamps: true });
+
+// Índices para queries frequentes
+eventSchema.index({ userId: 1, eventDate: 1 });
+eventSchema.index({ userId: 1, status: 1 });
+eventSchema.index({ userId: 1, clientName: 1 });
+eventSchema.index({ 'installmentList.paid': 1, 'installmentList.dueDate': 1 });
+eventSchema.index({ userId: 1, createdAt: -1 });
 
 eventSchema.virtual('balance').get(function() {
   const paid = this.installmentList?.filter(i => i.paid).reduce((s,i) => s + i.value, 0) || 0;
