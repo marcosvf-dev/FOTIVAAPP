@@ -296,7 +296,7 @@ ${assinaturaHtml}
         {/* Header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 0', marginBottom:16, flexWrap:'wrap', gap:10 }}>
           <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-            <FileText size=22 color="#E87722"/>
+            <FileText size={22} color="#E87722"/>
             <div>
               <div style={{ color:'#fff', fontSize:16, fontWeight:800 }}>
                 Contrato Nº {numContrato} — {evento?.clientName}
@@ -311,19 +311,19 @@ ${assinaturaHtml}
             </button>
             <button onClick={() => setTab(tab==='contrato'?'assinatura':'contrato')}
               style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, background: tab==='assinatura' ? 'rgba(168,85,247,.12)' : 'rgba(255,255,255,.06)', border: tab==='assinatura' ? '1px solid rgba(168,85,247,.3)' : '1px solid rgba(255,255,255,.1)', color: tab==='assinatura' ? '#A855F7' : '#888', fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>
-              <PenLine size=15/> {assinado ? '✅ Assinado' : 'Assinar'}
+              <PenLine size={15}/> {assinado ? '✅ Assinado' : 'Assinar'}
             </button>
             <button onClick={enviarWhatsApp}
               style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, background:'rgba(37,211,102,.12)', border:'1px solid rgba(37,211,102,.25)', color:'#25D366', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              <MessageCircle size=15/> WhatsApp
+              <MessageCircle size={15}/> WhatsApp
             </button>
             <button onClick={downloadPDF}
               style={{ display:'flex', alignItems:'center', gap:7, padding:'8px 16px', borderRadius:9, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', border:'none' }}>
-              <Download size=15/> Baixar PDF
+              <Download size={15}/> Baixar PDF
             </button>
             <button onClick={onClose}
               style={{ width:36, height:36, borderRadius:'50%', background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', color:'#888', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
-              <X size=18/>
+              <X size={18}/>
             </button>
           </div>
         </div>
@@ -332,7 +332,7 @@ ${assinaturaHtml}
         {tab === 'assinatura' && (
           <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.08)', borderRadius:16, padding:24, marginBottom:16 }}>
             <div style={{ color:'#fff', fontWeight:700, fontSize:15, marginBottom:8, display:'flex', alignItems:'center', gap:8 }}>
-              <PenLine size=18 color="#A855F7"/> Assinatura Digital do Cliente
+              <PenLine size={18} color="#A855F7"/> Assinatura Digital do Cliente
             </div>
             <p style={{ color:'#555', fontSize:13, marginBottom:16 }}>
               O cliente pode assinar aqui com o dedo (celular) ou mouse (desktop). A assinatura será salva no contrato.
@@ -363,7 +363,7 @@ ${assinaturaHtml}
                   </button>
                   <button onClick={salvarAssinatura} disabled={salvandoAssin}
                     style={{ flex:2, padding:'10px', borderRadius:9, background:'linear-gradient(135deg,#A855F7,#7C3AED)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:salvandoAssin?.6:1 }}>
-                    <PenLine size=14 style={{ display:'inline', marginRight:6 }}/> {salvandoAssin ? 'Salvando...' : 'Confirmar Assinatura'}
+                    <PenLine size={14} style={{ display:'inline', marginRight:6 }}/> {salvandoAssin ? 'Salvando...' : 'Confirmar Assinatura'}
                   </button>
                 </div>
               </>
