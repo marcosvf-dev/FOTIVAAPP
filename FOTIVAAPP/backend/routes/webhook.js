@@ -2,7 +2,6 @@ const router = require('express').Router();
 const User   = require('../models/User');
 const Coupon = require('../models/Coupon');
 
-// Stripe webhook — recebe raw body
 router.post('/stripe', async (req, res) => {
   const stripeKey     = process.env.STRIPE_SECRET_KEY;
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -14,113 +13,70 @@ router.post('/stripe', async (req, res) => {
 
   try {
     if (webhookSecret) {
-      const sig = req.headers['stripe-signature'];
-      event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
+      event = stripe.webhooks.constructEvent(req.body, req.headers['stripe-signature'], webhookSecret);
     } else {
       event = JSON.parse(req.body.toString());
     }
   } catch (e) {
-    console.error('❌ Webhook Stripe inválido:', e.message);
     return res.status(400).json({ error: e.message });
   }
 
-  console.log('📦 Stripe event:', event.type);
+  // Idempotência — evita processar o mesmo evento duas vezes
+  const mongoose = require('mongoose');
+  let ProcessedEvent;
+  try {
+    ProcessedEvent = mongoose.model('ProcessedEvent');
+  } catch {
+    const schema = new mongoose.Schema({
+      eventId:     { type: String, required: true, unique: true },
+      processedAt: { type: Date, default: Date.now },
+    });
+    schema.index({ processedAt: 1 }, { expireAfterSeconds: 60 * 60 * 24 * 7 });
+    ProcessedEvent = mongoose.model('ProcessedEvent', schema);
+  }
+
+  try {
+    await ProcessedEvent.create({ eventId: event.id });
+  } catch (e) {
+    if (e.code === 11000) return res.sendStatus(200); // já processado
+  }
 
   try {
     switch (event.type) {
-
       case 'checkout.session.completed': {
-        const session    = event.data.object;
-        const userId     = session.metadata?.userId;
-        const plan       = session.metadata?.plan;
-        const couponCode = session.metadata?.couponCode;
-
+        const session = event.data.object;
+        const { userId, plan, couponCode } = session.metadata || {};
         if (!userId || !plan) break;
-
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 31);
-
+        const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 31);
         await User.findByIdAndUpdate(userId, {
-          'subscription.plan':              plan,
-          'subscription.status':            'active',
-          'subscription.expiresAt':         expiresAt,
-          'subscription.lastPayment':        new Date(),
-          'subscription.stripeCustomerId':  session.customer,
-          'subscription.stripeSubId':       session.subscription,
+          'subscription.plan': plan, 'subscription.status': 'active',
+          'subscription.expiresAt': expiresAt, 'subscription.lastPayment': new Date(),
+          'subscription.stripeCustomerId': session.customer, 'subscription.stripeSubId': session.subscription,
         });
-
-        // Marca cupom como usado
-        if (couponCode) {
-          await Coupon.findOneAndUpdate(
-            { code: couponCode.toUpperCase() },
-            { $inc: { usedCount: 1 }, $addToSet: { usedBy: userId } }
-          );
-        }
-
-        console.log(`✅ Checkout concluído: user=${userId} plan=${plan}`);
+        if (couponCode) await Coupon.findOneAndUpdate({ code: couponCode.toUpperCase() }, { $inc: { usedCount:1 }, $addToSet: { usedBy: userId } });
         break;
       }
-
       case 'invoice.payment_succeeded': {
-        const invoice    = event.data.object;
-        const customerId = invoice.customer;
-
-        const user = await User.findOne({ 'subscription.stripeCustomerId': customerId });
+        const user = await User.findOne({ 'subscription.stripeCustomerId': event.data.object.customer });
         if (!user) break;
-
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 31);
-
-        await User.findByIdAndUpdate(user._id, {
-          'subscription.status':      'active',
-          'subscription.expiresAt':   expiresAt,
-          'subscription.lastPayment': new Date(),
-        });
-
-        console.log(`🔄 Renovação: customer=${customerId}`);
+        const expiresAt = new Date(); expiresAt.setDate(expiresAt.getDate() + 31);
+        await User.findByIdAndUpdate(user._id, { 'subscription.status': 'active', 'subscription.expiresAt': expiresAt, 'subscription.lastPayment': new Date() });
         break;
       }
-
-      case 'invoice.payment_failed': {
-        const invoice    = event.data.object;
-        const customerId = invoice.customer;
-
-        await User.findOneAndUpdate(
-          { 'subscription.stripeCustomerId': customerId },
-          { 'subscription.status': 'expired' }
-        );
-
-        console.log(`❌ Pagamento falhou: customer=${customerId}`);
+      case 'invoice.payment_failed':
+        await User.findOneAndUpdate({ 'subscription.stripeCustomerId': event.data.object.customer }, { 'subscription.status': 'expired' });
         break;
-      }
-
-      case 'customer.subscription.deleted': {
-        const sub        = event.data.object;
-        const customerId = sub.customer;
-
-        await User.findOneAndUpdate(
-          { 'subscription.stripeCustomerId': customerId },
-          { 'subscription.status': 'cancelled', 'subscription.plan': 'free' }
-        );
-
-        console.log(`🚫 Assinatura cancelada: customer=${customerId}`);
+      case 'customer.subscription.deleted':
+        await User.findOneAndUpdate({ 'subscription.stripeCustomerId': event.data.object.customer }, { 'subscription.status': 'cancelled', 'subscription.plan': 'free' });
         break;
-      }
-
       case 'customer.subscription.updated': {
-        const sub  = event.data.object;
-        const plan = sub.metadata?.plan;
-        if (!plan) break;
-
-        await User.findOneAndUpdate(
-          { 'subscription.stripeCustomerId': sub.customer },
-          { 'subscription.plan': plan }
-        );
+        const plan = event.data.object.metadata?.plan;
+        if (plan) await User.findOneAndUpdate({ 'subscription.stripeCustomerId': event.data.object.customer }, { 'subscription.plan': plan });
         break;
       }
     }
   } catch (e) {
-    console.error('❌ Erro processando evento:', e.message);
+    console.error('❌ Erro no webhook Stripe:', e.message);
   }
 
   res.sendStatus(200);
