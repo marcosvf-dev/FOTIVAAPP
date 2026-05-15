@@ -11,10 +11,15 @@ const userSchema = new mongoose.Schema({
   document:     { type: String, default: '' },
   isAdmin:      { type: Boolean, default: false },
 
-  // Versão do token — incrementar invalida todos os tokens antigos
   tokenVersion: { type: Number, default: 0 },
 
-  // OneSignal
+  // Recuperação de senha
+  resetPasswordToken:   { type: String, default: null },
+  resetPasswordExpires: { type: Date,   default: null },
+
+  // Numeração sequencial de contratos
+  contractCounter: { type: Number, default: 0 },
+
   oneSignalPlayerId: { type: String, default: null },
 
   subscription: {
@@ -31,7 +36,6 @@ const userSchema = new mongoose.Schema({
   whatsappPhone:     { type: String, default: '' },
   whatsappApiKey:    { type: String, default: '' },
 
-  // LGPD
   consentAcceptedAt:    { type: Date,    default: null },
   consentVersion:       { type: String,  default: null },
   deletionRequested:    { type: Boolean, default: false },
@@ -40,11 +44,22 @@ const userSchema = new mongoose.Schema({
   deletionMotivo:       { type: String,  default: null },
 }, { timestamps: true });
 
-// Índices para performance
 userSchema.index({ email: 1 });
 userSchema.index({ 'subscription.stripeCustomerId': 1 });
 userSchema.index({ 'subscription.status': 1 });
 userSchema.index({ deletionRequested: 1, deletionScheduledFor: 1 });
+userSchema.index({ resetPasswordToken: 1 });
+
+userSchema.methods.nextContractNumber = async function() {
+  const user = await this.constructor.findByIdAndUpdate(
+    this._id,
+    { $inc: { contractCounter: 1 } },
+    { new: true }
+  );
+  const year = new Date().getFullYear();
+  const num  = String(user.contractCounter).padStart(3, '0');
+  return `${num}/${year}`;
+};
 
 userSchema.virtual('isActive').get(function() {
   const s = this.subscription;
