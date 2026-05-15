@@ -54,9 +54,9 @@ const eventSchema = new mongoose.Schema({
   installmentList: [installmentSchema],
   notes:           { type: String, default: '' },
   contract: {
-    number:         { type: String, default: null },
-    signature:      { type: String, default: null },
-    signedAt:       { type: Date,   default: null },
+    number:         { type: String,  default: null },
+    signature:      { type: String,  default: null },
+    signedAt:       { type: Date,    default: null },
     signedByClient: { type: Boolean, default: false },
   },
 }, { timestamps: true });
