@@ -25,24 +25,13 @@ app.use(cors({
   allowedHeaders: ['Content-Type','Authorization','stripe-signature','x-cron-secret'],
 }));
 
-const limiterGeral = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 100,
-  message: { error: 'Muitas requisições. Tente novamente em alguns minutos.' },
-  standardHeaders: true, legacyHeaders: false,
-});
-const limiterAuth = rateLimit({
-  windowMs: 15 * 60 * 1000, max: 10,
-  message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
-  standardHeaders: true, legacyHeaders: false,
-});
-
-app.use('/api/', limiterGeral);
-app.use('/api/auth/login',    limiterAuth);
-app.use('/api/auth/register', limiterAuth);
+app.use('/api/', rateLimit({ windowMs:15*60*1000, max:100, message:{ error:'Muitas requisições.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/auth/login',    rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/auth/register', rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 mongoose.connect(process.env.MONGO_URL, { dbName: process.env.DB_NAME || 'fotiva' })
   .then(() => console.log('✅ MongoDB conectado'))
@@ -68,24 +57,32 @@ app.use('/api/installments', require('./routes/installments'));
 app.use('/api/ads',          require('./routes/ads'));
 app.use('/api/gallery',      require('./routes/gallery'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
+app.use('/api/backup',       require('./routes/backup'));
 
-app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.1.0', time: new Date() }));
-app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.1 — Seguro' }));
+app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.2.0', time: new Date() }));
+app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.2' }));
 
 cron.schedule('0 2 * * *', async () => {
-  const User = require('./models/User');
+  const User   = require('./models/User');
   const result = await User.updateMany(
     { 'subscription.status': 'active', 'subscription.expiresAt': { $lt: new Date() } },
     { $set: { 'subscription.status': 'expired', 'subscription.plan': 'free' } }
   );
-  if (result.modifiedCount > 0)
-    console.log(`⏰ Cron: ${result.modifiedCount} assinaturas expiradas`);
+  if (result.modifiedCount > 0) console.log(`⏰ ${result.modifiedCount} assinaturas expiradas`);
 });
 
 app.use((err, req, res, next) => {
   console.error('Erro:', err.message);
+  if (err.name === 'ValidationError') {
+    const messages = Object.values(err.errors).map(e => e.message);
+    return res.status(400).json({ error: messages.join(', ') });
+  }
+  if (err.code === 11000) {
+    const field = Object.keys(err.keyValue || {})[0] || 'campo';
+    return res.status(400).json({ error: `${field} já está em uso.` });
+  }
   res.status(err.status || 500).json({ error: err.message || 'Erro interno' });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Fotiva API v3.1 na porta ${PORT}`));
+app.listen(PORT, () => console.log(`🚀 Fotiva API v3.2 na porta ${PORT}`));
