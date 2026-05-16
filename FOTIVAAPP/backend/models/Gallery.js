@@ -14,20 +14,28 @@ const photoSchema = new mongoose.Schema({
 }, { _id: false });
 
 const gallerySchema = new mongoose.Schema({
-  userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-  title:       { type: String, required: true },
-  description: { type: String, default: '' },
-  clientName:  { type: String, required: true },
-  clientEmail: { type: String, required: true },
-  password:    { type: String, required: true },
-  photos:      [photoSchema],
-  status:      { type: String, enum: ['active','closed'], default: 'active' },
-  faceEnabled: { type: Boolean, default: false },
-  selectedPhotos: [{ type: String }],
+  userId:          { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  eventId:         { type: mongoose.Schema.Types.ObjectId, ref: 'Event', default: null },
+  title:           { type: String, required: true },
+  description:     { type: String, default: '' },
+  clientName:      { type: String, required: true },
+  clientEmail:     { type: String, default: '' },
+  password:        { type: String, required: true, select: false },
+  photos:          [photoSchema],
+  status:          { type: String, enum: ['active','closed'], default: 'active' },
+  faceEnabled:     { type: Boolean, default: false },
+  downloadEnabled: { type: Boolean, default: false },
+  watermarkEnabled:{ type: Boolean, default: false },
+  watermarkText:   { type: String,  default: '' },
+  selectedPhotos:  [{ type: String }],
   selectionSentAt: { type: Date },
-  expiresAt:   { type: Date },
-  createdAt:   { type: Date, default: Date.now },
-  closedAt:    { type: Date },
+  expiresAt:       { type: Date, default: null },
+  createdAt:       { type: Date, default: Date.now },
+  closedAt:        { type: Date },
 });
+
+gallerySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+gallerySchema.index({ userId: 1 });
+gallerySchema.index({ eventId: 1 });
 
 module.exports = mongoose.model('Gallery', gallerySchema);
