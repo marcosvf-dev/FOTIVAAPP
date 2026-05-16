@@ -24,8 +24,9 @@ function gerarMensagemWhatsApp({ evento, fotógrafo }) {
   const { clientName, eventType, eventDate, location, totalValue, amountPaid, status } = evento;
   const nome    = fotógrafo?.name       || '';
   const estudio = fotógrafo?.studioName || '';
-  const data    = eventDate ? new Date(eventDate).toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '';
-  const hora    = eventDate ? new Date(eventDate).toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
+  const dataObj = eventDate ? new Date(eventDate) : null;
+  const data    = dataObj && !isNaN(dataObj) ? dataObj.toLocaleDateString('pt-BR', { day:'2-digit', month:'2-digit', year:'numeric' }) : '';
+  const hora    = dataObj && !isNaN(dataObj) ? dataObj.toLocaleTimeString('pt-BR', { hour:'2-digit', minute:'2-digit' }) : '';
   const saldo   = Math.max(0, (totalValue||0) - (amountPaid||0));
 
   const statusMsgs = {
@@ -122,7 +123,6 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
 
   useEffect(() => {
     api.get('/api/clients', { params: { limit: 500 } }).then(r => {
-      // API pode retornar array direto ou { clients: [...], pagination: {...} }
       const lista = Array.isArray(r.data) ? r.data : (r.data.clients || []);
       setClientes(lista);
       if (form.clientId) {
@@ -138,7 +138,9 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
     e.preventDefault();
     const payload = {
       ...form,
-      eventDate: form.eventDate && form.eventTime ? `${form.eventDate}T${form.eventTime}:00` : form.eventDate || null,
+      eventDate: form.eventDate
+        ? `${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00`
+        : null,
       totalValue:   parseFloat(form.totalValue)   || 0,
       amountPaid:   parseFloat(form.amountPaid)   || 0,
       installments: parseInt(form.installments)   || 1,
@@ -149,8 +151,8 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
     onSubmit(payload);
   };
 
-  const labelStyle  = { display:'block', fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6 };
-  const inputStyle  = { width:'100%', background:'#161616', border:'1px solid rgba(255,255,255,0.07)', borderRadius:10, color:'#ddd', padding:'10px 14px', fontSize:14, outline:'none', transition:'all .15s' };
+  const labelStyle   = { display:'block', fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:'0.5px', marginBottom:6 };
+  const inputStyle   = { width:'100%', background:'#161616', border:'1px solid rgba(255,255,255,0.07)', borderRadius:10, color:'#ddd', padding:'10px 14px', fontSize:14, outline:'none', transition:'all .15s' };
   const sectionStyle = { background:'#111', border:'1px solid rgba(255,255,255,0.06)', borderRadius:16, padding:22, marginBottom:16 };
   const onFocus = e => { e.target.style.borderColor='#E87722'; e.target.style.boxShadow='0 0 0 3px rgba(232,119,34,0.15)'; };
   const onBlur  = e => { e.target.style.borderColor='rgba(255,255,255,0.07)'; e.target.style.boxShadow='none'; };
@@ -161,7 +163,7 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
   const eventoParaWhats = {
     clientName: form.clientName || clientes.find(c => c._id === form.clientId)?.name || '',
     eventType:  form.eventType  || '',
-    eventDate:  form.eventDate && form.eventTime ? `${form.eventDate}T${form.eventTime}:00` : form.eventDate || null,
+    eventDate:  form.eventDate ? `${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00` : null,
     location:   form.location   || '',
     totalValue: parseFloat(form.totalValue)  || 0,
     amountPaid: parseFloat(form.amountPaid)  || 0,
