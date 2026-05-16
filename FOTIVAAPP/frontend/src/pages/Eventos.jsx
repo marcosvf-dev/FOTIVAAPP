@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Calendar, Trash2, MapPin, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Search, Calendar, Trash2, MapPin, DollarSign, ChevronDown, ChevronUp, Archive, Image } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,8 +26,9 @@ const nextStatus = (current) => {
 };
 
 function gerarMensagem({ ev, user }) {
-  const data  = ev.eventDate ? new Date(ev.eventDate).toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
-  const hora  = ev.eventDate ? new Date(ev.eventDate).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
+  const dataObj = ev.eventDate ? new Date(ev.eventDate) : null;
+  const data  = dataObj && !isNaN(dataObj) ? dataObj.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric'}) : '';
+  const hora  = dataObj && !isNaN(dataObj) ? dataObj.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
   const saldo = Math.max(0,(ev.totalValue||0)-(ev.amountPaid||0));
   const statusMsgs = {
     orcamento:`Segue o orçamento para o seu *${ev.eventType}*. Fico à disposição!`,
@@ -92,26 +93,124 @@ function WhatsModalRapido({ ev, user, onClose }) {
   );
 }
 
+// Modal para criar galeria vinculada ao evento
+function CriarGaleriaModal({ ev, onClose, onCreated }) {
+  const [form,    setForm]    = useState({ password: '', downloadEnabled: false, watermarkEnabled: false });
+  const [loading, setLoading] = useState(false);
+
+  const criar = async () => {
+    if (!form.password.trim()) { toast.error('Crie uma senha para o cliente acessar a galeria'); return; }
+    setLoading(true);
+    try {
+      await api.post('/api/gallery/photographer', {
+        title:            `${ev.eventType} — ${ev.clientName}`,
+        description:      ev.eventDate ? `Evento em ${new Date(ev.eventDate).toLocaleDateString('pt-BR')}` : '',
+        clientName:       ev.clientName,
+        clientEmail:      ev.clientEmail || '',
+        password:         form.password,
+        downloadEnabled:  form.downloadEnabled,
+        watermarkEnabled: form.watermarkEnabled,
+        eventId:          ev._id,
+      });
+      toast.success('Galeria criada!');
+      onCreated();
+      onClose();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Erro ao criar galeria');
+    }
+    setLoading(false);
+  };
+
+  const inpStyle = { width:'100%', background:'#161616', border:'1px solid rgba(255,255,255,.1)', borderRadius:10, color:'#fff', padding:'10px 14px', fontSize:14, outline:'none', fontFamily:'inherit' };
+  const OR = '#E87722';
+
+  return (
+    <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:16 }}
+      onClick={onClose}>
+      <div style={{ background:'#111', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:420 }}
+        onClick={e => e.stopPropagation()}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <h2 style={{ color:'#fff', fontSize:17, fontWeight:800, margin:0 }}>📸 Criar Galeria</h2>
+          <button onClick={onClose} style={{ background:'none', border:'none', color:'#666', cursor:'pointer', fontSize:20 }}>✕</button>
+        </div>
+
+        <div style={{ background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.2)', borderRadius:10, padding:'10px 14px', marginBottom:18, fontSize:13, color:'#E87722' }}>
+          <strong>{ev.eventType}</strong> — {ev.clientName}
+          {ev.eventDate && <span style={{ color:'#666', marginLeft:8 }}>{new Date(ev.eventDate).toLocaleDateString('pt-BR')}</span>}
+        </div>
+
+        {!ev.clientEmail && (
+          <div style={{ background:'rgba(245,158,11,.08)', border:'1px solid rgba(245,158,11,.2)', borderRadius:10, padding:'10px 14px', marginBottom:14, fontSize:12, color:'#F59E0B' }}>
+            ⚠️ Este cliente não tem email cadastrado. O link da galeria precisará ser enviado manualmente.
+          </div>
+        )}
+
+        <div style={{ marginBottom:16 }}>
+          <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:.5, marginBottom:6 }}>Senha de acesso para o cliente *</label>
+          <input type="password" placeholder="Crie uma senha para o cliente" value={form.password}
+            onChange={e => setForm(f => ({...f, password: e.target.value}))} style={inpStyle}/>
+          <div style={{ color:'#444', fontSize:11, marginTop:4 }}>O cliente usará esta senha para acessar as fotos</div>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:20 }}>
+          {[
+            ['downloadEnabled',  'Permitir download', 'Cliente pode baixar as fotos', '#3B82F6'],
+            ['watermarkEnabled', "Marca d'água",      'Adiciona seu nome nas fotos',  '#A855F7'],
+          ].map(([key, label, sub, color]) => (
+            <div key={key} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,.03)', borderRadius:10, padding:'10px 14px', border:'1px solid rgba(255,255,255,.06)' }}>
+              <div>
+                <div style={{ color:'#ddd', fontSize:13, fontWeight:600 }}>{label}</div>
+                <div style={{ color:'#555', fontSize:11, marginTop:2 }}>{sub}</div>
+              </div>
+              <button onClick={() => setForm(f => ({...f, [key]: !f[key]}))}
+                style={{ background:'none', border:'none', cursor:'pointer', padding:0, fontSize:22 }}>
+                {form[key] ? '🟢' : '⚫'}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display:'flex', gap:10 }}>
+          <button onClick={onClose}
+            style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={criar} disabled={loading}
+            style={{ flex:2, padding:'11px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?.6:1 }}>
+            {loading ? 'Criando...' : '📸 Criar Galeria'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Eventos() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [eventos,       setEventos]      = useState([]);
-  const [contratoId,    setContratoId]   = useState(null);
-  const [whatsEv,       setWhatsEv]      = useState(null);
-  const [loading,       setLoading]      = useState(true);
-  const [search,        setSearch]       = useState('');
-  const [filter,        setFilter]       = useState('todos');
-  const [expanded,      setExpanded]     = useState({});
+  const [eventos,       setEventos]       = useState([]);
+  const [contratoId,    setContratoId]    = useState(null);
+  const [whatsEv,       setWhatsEv]       = useState(null);
+  const [galeriaEv,     setGaleriaEv]     = useState(null);
+  const [loading,       setLoading]       = useState(true);
+  const [search,        setSearch]        = useState('');
+  const [filter,        setFilter]        = useState('todos');
+  const [expanded,      setExpanded]      = useState({});
   const [statusLoading, setStatusLoading] = useState({});
+  const [showArchived,  setShowArchived]  = useState(false);
 
   const load = async () => {
-    try { const r = await api.get('/api/events'); setEventos(r.data); }
-    catch { toast.error('Erro ao carregar eventos'); }
+    try {
+      const r = await api.get('/api/events');
+      setEventos(r.data);
+    } catch { toast.error('Erro ao carregar eventos'); }
     finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
   const filtered = eventos.filter(e => {
+    if (!showArchived && e.archived) return false;
+    if (showArchived && !e.archived) return false;
     const matchSearch = e.eventType?.toLowerCase().includes(search.toLowerCase()) || e.clientName?.toLowerCase().includes(search.toLowerCase());
     const matchFilter = filter === 'todos' || e.status === filter;
     return matchSearch && matchFilter;
@@ -119,9 +218,20 @@ export default function Eventos() {
 
   const remove = async (e, id, name) => {
     e.stopPropagation();
-    if (!window.confirm(`Excluir "${name}"?`)) return;
+    if (!window.confirm(`Excluir "${name}"?\n\nIsto apagará o evento e todos os dados financeiros permanentemente.`)) return;
     try { await api.delete(`/api/events/${id}`); toast.success('Evento removido'); load(); }
     catch { toast.error('Erro ao remover'); }
+  };
+
+  const archive = async (e, ev) => {
+    e.stopPropagation();
+    const acao = ev.archived ? 'desarquivar' : 'arquivar';
+    if (!window.confirm(`${acao.charAt(0).toUpperCase() + acao.slice(1)} "${ev.eventType} — ${ev.clientName}"?\n\nOs dados financeiros serão mantidos.`)) return;
+    try {
+      await api.patch(`/api/events/${ev._id}/archive`, { archived: !ev.archived });
+      toast.success(ev.archived ? '📂 Evento restaurado!' : '📁 Evento arquivado!');
+      load();
+    } catch { toast.error('Erro ao arquivar'); }
   };
 
   const advanceStatus = async (e, ev) => {
@@ -145,6 +255,7 @@ export default function Eventos() {
     finally { setStatusLoading(p => ({ ...p, [evId]: false })); setExpanded(p => ({ ...p, [evId]: false })); }
   };
 
+  const archivedCount = eventos.filter(e => e.archived).length;
   const filters = [['todos','Todos'],['orcamento','Orçamento'],['confirmado','Confirmados'],['realizado','Realizados'],['fotos_entregues','Fotos Entregues'],['concluido','Concluídos']];
 
   return (
@@ -152,9 +263,22 @@ export default function Eventos() {
       <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24, flexWrap:'wrap', gap:12 }}>
         <div>
           <h1 style={{ color:'#fff', fontSize:24, fontWeight:800, letterSpacing:'-0.4px' }}>Eventos</h1>
-          <p style={{ color:'#555', fontSize:13, marginTop:4 }}>{eventos.length} evento{eventos.length !== 1 ? 's' : ''} cadastrado{eventos.length !== 1 ? 's' : ''}</p>
+          <p style={{ color:'#555', fontSize:13, marginTop:4 }}>
+            {eventos.filter(e => !e.archived).length} evento{eventos.filter(e=>!e.archived).length !== 1 ? 's' : ''} ativo{eventos.filter(e=>!e.archived).length !== 1 ? 's' : ''}
+            {archivedCount > 0 && <span style={{ color:'#444', marginLeft:8 }}>· {archivedCount} arquivado{archivedCount>1?'s':''}</span>}
+          </p>
         </div>
-        <button className="f-btn f-btn-primary" onClick={() => navigate('/eventos/novo')}><Plus size={16}/> Novo Evento</button>
+        <div style={{ display:'flex', gap:8 }}>
+          {archivedCount > 0 && (
+            <button onClick={() => setShowArchived(a => !a)}
+              style={{ display:'flex', alignItems:'center', gap:6, padding:'9px 16px', borderRadius:10, background: showArchived ? 'rgba(168,85,247,.15)' : 'rgba(255,255,255,.05)', border: showArchived ? '1px solid rgba(168,85,247,.3)' : '1px solid rgba(255,255,255,.08)', color: showArchived ? '#A855F7' : '#666', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              <Archive size={14}/> {showArchived ? 'Ver ativos' : `Arquivados (${archivedCount})`}
+            </button>
+          )}
+          <button className="f-btn f-btn-primary" onClick={() => navigate('/eventos/novo')}>
+            <Plus size={16}/> Novo Evento
+          </button>
+        </div>
       </div>
 
       <div style={{ position:'relative', marginBottom:14 }}>
@@ -178,8 +302,14 @@ export default function Eventos() {
       ) : !filtered.length ? (
         <div style={{ textAlign:'center', padding:'52px 0' }}>
           <Calendar size={44} color="#222" style={{ margin:'0 auto 14px', display:'block' }}/>
-          <p style={{ color:'#444', fontSize:15 }}>Nenhum evento encontrado</p>
-          {!search && <button className="f-btn f-btn-primary" onClick={() => navigate('/eventos/novo')} style={{ marginTop:16 }}><Plus size={15}/> Criar evento</button>}
+          <p style={{ color:'#444', fontSize:15 }}>
+            {showArchived ? 'Nenhum evento arquivado' : 'Nenhum evento encontrado'}
+          </p>
+          {!search && !showArchived && (
+            <button className="f-btn f-btn-primary" onClick={() => navigate('/eventos/novo')} style={{ marginTop:16 }}>
+              <Plus size={15}/> Criar evento
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
@@ -190,56 +320,96 @@ export default function Eventos() {
             const remaining = Math.max(0,(ev.totalValue||0)-(ev.amountPaid||0));
             const isExp     = expanded[ev._id];
             return (
-              <div key={ev._id} style={{ background:'#111', border:'1px solid rgba(255,255,255,0.06)', borderRadius:14, overflow:'hidden' }}>
-                {ev.status !== 'cancelado' && (
+              <div key={ev._id} style={{ background: ev.archived ? '#0d0d0d' : '#111', border:`1px solid ${ev.archived ? 'rgba(255,255,255,.03)' : 'rgba(255,255,255,0.06)'}`, borderRadius:14, overflow:'hidden', opacity: ev.archived ? .7 : 1 }}>
+                {ev.status !== 'cancelado' && !ev.archived && (
                   <div style={{ height:3, background:'rgba(255,255,255,0.04)' }}>
                     <div style={{ height:'100%', width:`${(s.step/7)*100}%`, background:`linear-gradient(90deg,#E87722,${s.color})`, transition:'width .4s ease' }}/>
                   </div>
                 )}
-                <div style={{ padding:'14px 16px', cursor:'pointer' }} onClick={() => navigate(`/eventos/editar/${ev._id}`)}>
+                <div style={{ padding:'14px 16px', cursor:'pointer' }} onClick={() => !ev.archived && navigate(`/eventos/editar/${ev._id}`)}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                    <div style={{ width:44, height:44, background:'rgba(232,119,34,0.1)', border:'1px solid rgba(232,119,34,0.2)', borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      {date ? <><span style={{ color:'#E87722', fontSize:15, fontWeight:800, lineHeight:1 }}>{date.getDate()}</span><span style={{ color:'#E87722', fontSize:9, fontWeight:600, textTransform:'uppercase' }}>{date.toLocaleString('pt-BR',{month:'short'})}</span></> : <Calendar size={18} color="#E87722"/>}
+                    <div style={{ width:44, height:44, background: ev.archived ? 'rgba(255,255,255,.04)' : 'rgba(232,119,34,0.1)', border:`1px solid ${ev.archived ? 'rgba(255,255,255,.08)' : 'rgba(232,119,34,0.2)'}`, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                      {ev.archived ? (
+                        <Archive size={18} color="#555"/>
+                      ) : date ? (
+                        <>
+                          <span style={{ color:'#E87722', fontSize:15, fontWeight:800, lineHeight:1 }}>{date.getDate()}</span>
+                          <span style={{ color:'#E87722', fontSize:9, fontWeight:600, textTransform:'uppercase' }}>{date.toLocaleString('pt-BR',{month:'short'})}</span>
+                        </>
+                      ) : <Calendar size={18} color="#E87722"/>}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3, flexWrap:'wrap' }}>
-                        <span style={{ color:'#fff', fontWeight:700, fontSize:15 }}>{ev.eventType}</span>
-                        <span style={{ background:s.bg, color:s.color, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, border:`1px solid ${s.color}33`, whiteSpace:'nowrap' }}>{s.icon} {s.label}</span>
+                        <span style={{ color: ev.archived ? '#666' : '#fff', fontWeight:700, fontSize:15 }}>{ev.eventType}</span>
+                        {ev.archived ? (
+                          <span style={{ background:'rgba(168,85,247,.1)', color:'#A855F7', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, border:'1px solid rgba(168,85,247,.2)' }}>📁 Arquivado</span>
+                        ) : (
+                          <span style={{ background:s.bg, color:s.color, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, border:`1px solid ${s.color}33`, whiteSpace:'nowrap' }}>{s.icon} {s.label}</span>
+                        )}
                       </div>
                       <div style={{ color:'#888', fontSize:13, marginBottom:6 }}>{ev.clientName}</div>
                       <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
                         {ev.location && (
                           <div style={{ display:'flex', alignItems:'center', gap:4 }}>
                             <span style={{ color:'#555', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><MapPin size={11}/>{ev.location.length > 25 ? ev.location.slice(0,25)+'...' : ev.location}</span>
-                            <div style={{ display:'flex', gap:3 }} onClick={e => e.stopPropagation()}>
-                              <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`} target="_blank" rel="noreferrer" style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:5, background:'rgba(66,133,244,.15)', color:'#4285F4', border:'1px solid rgba(66,133,244,.25)', textDecoration:'none' }}>Maps</a>
-                              <a href={`https://waze.com/ul?q=${encodeURIComponent(ev.location)}&navigate=yes`} target="_blank" rel="noreferrer" style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:5, background:'rgba(0,162,197,.15)', color:'#00A2C5', border:'1px solid rgba(0,162,197,.25)', textDecoration:'none' }}>Waze</a>
-                            </div>
+                            {!ev.archived && (
+                              <div style={{ display:'flex', gap:3 }} onClick={e => e.stopPropagation()}>
+                                <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(ev.location)}`} target="_blank" rel="noreferrer" style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:5, background:'rgba(66,133,244,.15)', color:'#4285F4', border:'1px solid rgba(66,133,244,.25)', textDecoration:'none' }}>Maps</a>
+                                <a href={`https://waze.com/ul?q=${encodeURIComponent(ev.location)}&navigate=yes`} target="_blank" rel="noreferrer" style={{ fontSize:9, fontWeight:700, padding:'2px 5px', borderRadius:5, background:'rgba(0,162,197,.15)', color:'#00A2C5', border:'1px solid rgba(0,162,197,.25)', textDecoration:'none' }}>Waze</a>
+                              </div>
+                            )}
                           </div>
                         )}
                         {ev.totalValue > 0 && <span style={{ color:'#555', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><DollarSign size={11}/>R${ev.totalValue.toLocaleString('pt-BR')}</span>}
-                        {remaining > 0 && <span style={{ color:'#E87722', fontSize:12, fontWeight:600 }}>Saldo: R${remaining.toLocaleString('pt-BR')}</span>}
+                        {remaining > 0 && !ev.archived && <span style={{ color:'#E87722', fontSize:12, fontWeight:600 }}>Saldo: R${remaining.toLocaleString('pt-BR')}</span>}
+                        {ev.archived && ev.totalValue > 0 && <span style={{ color:'#444', fontSize:12 }}>Financeiro mantido no histórico</span>}
                       </div>
                     </div>
+
+                    {/* Botões de ação */}
                     <div style={{ display:'flex', flexDirection:'column', gap:5, flexShrink:0 }} onClick={e => e.stopPropagation()}>
-                      <button onClick={e => remove(e, ev._id, ev.eventType)} style={{ padding:7, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:8, color:'#ef4444', cursor:'pointer', display:'flex' }}><Trash2 size={13}/></button>
-                      <button onClick={e => { e.stopPropagation(); setContratoId(ev._id); }} style={{ padding:'5px 8px', background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.15)', color:'#22C55E', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>📄</button>
-                      <button onClick={e => { e.stopPropagation(); setWhatsEv(ev); }} style={{ padding:'5px 8px', background:'rgba(37,211,102,.08)', border:'1px solid rgba(37,211,102,.2)', color:'#25D366', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>💬</button>
+                      {/* Arquivar / Restaurar */}
+                      <button onClick={e => archive(e, ev)}
+                        title={ev.archived ? 'Restaurar evento' : 'Arquivar evento (mantém financeiro)'}
+                        style={{ padding:7, background: ev.archived ? 'rgba(168,85,247,.1)' : 'rgba(255,255,255,.05)', border:`1px solid ${ev.archived ? 'rgba(168,85,247,.3)' : 'rgba(255,255,255,.08)'}`, borderRadius:8, color: ev.archived ? '#A855F7' : '#666', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                        <Archive size={13}/>
+                      </button>
+                      {/* Excluir permanentemente */}
+                      <button onClick={e => remove(e, ev._id, ev.eventType)}
+                        title="Excluir permanentemente"
+                        style={{ padding:7, background:'rgba(239,68,68,0.1)', border:'1px solid rgba(239,68,68,0.15)', borderRadius:8, color:'#ef4444', cursor:'pointer', display:'flex' }}>
+                        <Trash2 size={13}/>
+                      </button>
+                      {!ev.archived && (
+                        <>
+                          <button onClick={e => { e.stopPropagation(); setContratoId(ev._id); }}
+                            style={{ padding:'5px 8px', background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.15)', color:'#22C55E', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>📄</button>
+                          <button onClick={e => { e.stopPropagation(); setWhatsEv(ev); }}
+                            style={{ padding:'5px 8px', background:'rgba(37,211,102,.08)', border:'1px solid rgba(37,211,102,.2)', color:'#25D366', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>💬</button>
+                          <button onClick={e => { e.stopPropagation(); setGaleriaEv(ev); }}
+                            title="Criar galeria para este evento"
+                            style={{ padding:'5px 8px', background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.2)', color:'#E87722', borderRadius:8, fontSize:10, fontWeight:700, cursor:'pointer' }}>📸</button>
+                        </>
+                      )}
                     </div>
                   </div>
-                  <div style={{ marginTop:10, display:'flex', gap:7, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
-                    {next && (
-                      <button onClick={e => advanceStatus(e, ev)} disabled={statusLoading[ev._id]}
-                        style={{ flex:1, padding:'8px 12px', borderRadius:9, background:`linear-gradient(135deg,${next.color}22,${next.color}11)`, border:`1px solid ${next.color}44`, color:next.color, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, opacity:statusLoading[ev._id]?.6:1, fontFamily:'inherit', minWidth:140 }}>
-                        {statusLoading[ev._id] ? '...' : `${next.icon} → ${next.label}`}
+
+                  {!ev.archived && (
+                    <div style={{ marginTop:10, display:'flex', gap:7, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
+                      {next && (
+                        <button onClick={e => advanceStatus(e, ev)} disabled={statusLoading[ev._id]}
+                          style={{ flex:1, padding:'8px 12px', borderRadius:9, background:`linear-gradient(135deg,${next.color}22,${next.color}11)`, border:`1px solid ${next.color}44`, color:next.color, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, opacity:statusLoading[ev._id]?.6:1, fontFamily:'inherit', minWidth:140 }}>
+                          {statusLoading[ev._id] ? '...' : `${next.icon} → ${next.label}`}
+                        </button>
+                      )}
+                      <button onClick={() => setExpanded(p => ({ ...p, [ev._id]: !p[ev._id] }))}
+                        style={{ padding:'8px 12px', borderRadius:9, background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', color:'#666', fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontFamily:'inherit' }}>
+                        {isExp ? <ChevronUp size={13}/> : <ChevronDown size={13}/>} Alterar
                       </button>
-                    )}
-                    <button onClick={() => setExpanded(p => ({ ...p, [ev._id]: !p[ev._id] }))}
-                      style={{ padding:'8px 12px', borderRadius:9, background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', color:'#666', fontSize:11, fontWeight:600, cursor:'pointer', display:'flex', alignItems:'center', gap:4, fontFamily:'inherit' }}>
-                      {isExp ? <ChevronUp size={13}/> : <ChevronDown size={13}/>} Alterar
-                    </button>
-                  </div>
-                  {isExp && (
+                    </div>
+                  )}
+
+                  {isExp && !ev.archived && (
                     <div style={{ marginTop:8, display:'flex', gap:5, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
                       {STATUS_FLOW.map(st => (
                         <button key={st.id} onClick={() => changeStatus(ev._id, st.id)}
@@ -255,8 +425,10 @@ export default function Eventos() {
           })}
         </div>
       )}
+
       {contratoId && <Contrato eventoId={contratoId} onClose={() => setContratoId(null)}/>}
-      {whatsEv && <WhatsModalRapido ev={whatsEv} user={user} onClose={() => setWhatsEv(null)}/>}
+      {whatsEv    && <WhatsModalRapido ev={whatsEv} user={user} onClose={() => setWhatsEv(null)}/>}
+      {galeriaEv  && <CriarGaleriaModal ev={galeriaEv} onClose={() => setGaleriaEv(null)} onCreated={load}/>}
     </Layout>
   );
 }
