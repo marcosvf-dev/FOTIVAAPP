@@ -206,4 +206,214 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
               <div style={{ marginTop:12 }}>
                 <label style={labelStyle}>Ou digite o nome do cliente</label>
                 <input style={inputStyle} type="text" placeholder="Nome do cliente" value={form.clientName}
-                  onChange={e => set('clientName', e.target.value)} onFocu
+                  onChange={e => set('clientName', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                <p style={{ color:'#444', fontSize:11, marginTop:5 }}>Se não existir, será criado automaticamente</p>
+              </div>
+            )}
+          </div>
+
+          <div style={sectionStyle}>
+            <h3 style={{ color:'#E87722', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:16 }}>Detalhes do Evento</h3>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={labelStyle}>Tipo de evento</label>
+                <select value={form.eventType} onChange={e => set('eventType', e.target.value)} required style={{ ...inputStyle, cursor:'pointer' }} onFocus={onFocus} onBlur={onBlur}>
+                  <option value="">Selecione o tipo...</option>
+                  {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label style={labelStyle}>Data</label>
+                <input style={inputStyle} type="date" value={form.eventDate} onChange={e => set('eventDate', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Horário</label>
+                <input style={inputStyle} type="time" value={form.eventTime} onChange={e => set('eventTime', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+              </div>
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={labelStyle}>Local</label>
+                <input style={inputStyle} type="text" placeholder="Local do evento" value={form.location} onChange={e => set('location', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                {form.location && form.location.trim().length > 3 && (
+                  <div style={{ display:'flex', gap:8, marginTop:8, flexWrap:'wrap' }}>
+                    <span style={{ fontSize:11, color:'#555', alignSelf:'center' }}>Abrir em:</span>
+                    <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.location)}`} target="_blank" rel="noreferrer"
+                      style={{ fontSize:11, fontWeight:700, padding:'5px 12px', borderRadius:8, background:'rgba(66,133,244,.12)', color:'#4285F4', border:'1px solid rgba(66,133,244,.25)', textDecoration:'none' }}>🗺 Google Maps</a>
+                    <a href={`https://waze.com/ul?q=${encodeURIComponent(form.location)}&navigate=yes`} target="_blank" rel="noreferrer"
+                      style={{ fontSize:11, fontWeight:700, padding:'5px 12px', borderRadius:8, background:'rgba(0,162,197,.12)', color:'#00A2C5', border:'1px solid rgba(0,162,197,.25)', textDecoration:'none' }}>🚗 Waze</a>
+                    <a href={`https://maps.apple.com/?q=${encodeURIComponent(form.location)}`} target="_blank" rel="noreferrer"
+                      style={{ fontSize:11, fontWeight:700, padding:'5px 12px', borderRadius:8, background:'rgba(255,255,255,.06)', color:'#aaa', border:'1px solid rgba(255,255,255,.1)', textDecoration:'none' }}>🍎 Apple Maps</a>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ gridColumn:'1/-1' }}>
+                <label style={labelStyle}>Status do evento</label>
+                <div style={{ background:`${selectedStatus.color}15`, border:`1px solid ${selectedStatus.color}33`, borderRadius:10, padding:'10px 14px', marginBottom:10, display:'flex', alignItems:'center', gap:8 }}>
+                  <span style={{ fontSize:18 }}>{selectedStatus.icon}</span>
+                  <div>
+                    <div style={{ color:selectedStatus.color, fontWeight:700, fontSize:14 }}>{selectedStatus.label}</div>
+                    <div style={{ color:'#555', fontSize:11, marginTop:1 }}>Status atual do evento</div>
+                  </div>
+                </div>
+                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                  {STATUS_FLOW.map(s => (
+                    <button key={s.id} type="button" onClick={() => set('status', s.id)}
+                      style={{ padding:'7px 13px', borderRadius:8, fontSize:12, fontWeight:600, border:`1px solid ${s.color}33`, cursor:'pointer',
+                        background: form.status===s.id ? `${s.color}22` : 'transparent',
+                        color: form.status===s.id ? s.color : '#555', fontFamily:'inherit' }}>
+                      {s.icon} {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style={sectionStyle}>
+            <h3 style={{ color:'#E87722', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.6px', marginBottom:16 }}>Financeiro</h3>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+              <div>
+                <label style={labelStyle}>Valor total (R$)</label>
+                <input style={inputStyle} type="number" min="0" step="0.01" placeholder="0,00" value={form.totalValue} onChange={e => set('totalValue', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Valor pago (R$)</label>
+                <input style={inputStyle} type="number" min="0" step="0.01" placeholder="0,00" value={form.amountPaid} onChange={e => set('amountPaid', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+              </div>
+              <div>
+                <label style={labelStyle}>Parcelas</label>
+                <select value={form.installments} onChange={e => set('installments', e.target.value)} style={{ ...inputStyle, cursor:'pointer' }} onFocus={onFocus} onBlur={onBlur}>
+                  {[1,2,3,4,5,6,7,8,9,10,11,12,24,36,48].map(n => (
+                    <option key={n} value={n}>{n}x{n > 1 ? ` (R$${(remaining/n).toFixed(2)})` : ' — sem parcelas'}</option>
+                  ))}
+                </select>
+              </div>
+              {parseInt(form.installments) > 1 && (
+                <div style={{ gridColumn:'1/-1', display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+                  <div>
+                    <label style={labelStyle}>Data da 1ª parcela</label>
+                    <input style={inputStyle} type="date" value={form.firstDueDate} onChange={e => set('firstDueDate', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                    <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Demais parcelas: mesmo dia nos meses seguintes</div>
+                  </div>
+                  <div>
+                    <label style={labelStyle}>Dia do vencimento (mensal)</label>
+                    <input style={inputStyle} type="number" min="1" max="31" placeholder="Ex: 10" value={form.dueDay} onChange={e => set('dueDay', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+                    <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Dia fixo todo mês para vencer</div>
+                  </div>
+                </div>
+              )}
+              <div>
+                <label style={labelStyle}>Forma de pagamento</label>
+                <select value={form.paymentType} onChange={e => set('paymentType', e.target.value)} style={{ ...inputStyle, cursor:'pointer' }} onFocus={onFocus} onBlur={onBlur}>
+                  {PAGAMENTOS.map(([v,l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+            </div>
+            {(parseFloat(form.totalValue)||0) > 0 && (
+              <div style={{ marginTop:14, padding:'12px 16px', background:'#161616', borderRadius:10, border:'1px solid rgba(255,255,255,0.05)', display:'flex', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
+                <span style={{ color:'#555', fontSize:13 }}>Saldo restante:</span>
+                <span style={{ color: remaining > 0 ? '#E87722' : '#22C55E', fontWeight:700, fontSize:15 }}>R${remaining.toFixed(2).replace('.',',')}</span>
+              </div>
+            )}
+          </div>
+
+          <div style={sectionStyle}>
+            <label style={labelStyle}>Observações</label>
+            <textarea style={{ ...inputStyle, minHeight:90, resize:'vertical' }} placeholder="Detalhes adicionais..." value={form.notes} onChange={e => set('notes', e.target.value)} onFocus={onFocus} onBlur={onBlur}/>
+          </div>
+
+          {form.eventType && (form.clientName || form.clientId) && (
+            <div style={{ background:'rgba(37,211,102,0.06)', border:'1px solid rgba(37,211,102,0.15)', borderRadius:12, padding:'12px 16px', marginBottom:16, display:'flex', alignItems:'center', justifyContent:'space-between', gap:12, flexWrap:'wrap' }}>
+              <div>
+                <div style={{ color:'#25D366', fontSize:13, fontWeight:700 }}>💬 Enviar confirmação por WhatsApp</div>
+                <div style={{ color:'#555', fontSize:12, marginTop:2 }}>Mensagem personalizada pronta para enviar ao cliente</div>
+              </div>
+              <button type="button" onClick={() => setWhatsModal(true)}
+                style={{ padding:'9px 18px', borderRadius:9, background:'linear-gradient(135deg,#25D366,#128C7E)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', whiteSpace:'nowrap' }}>
+                Ver mensagem
+              </button>
+            </div>
+          )}
+
+          <div style={{ display:'flex', gap:10 }}>
+            <button type="button" className="f-btn f-btn-ghost" onClick={() => navigate(-1)} style={{ flex:1, padding:'12px' }}>Cancelar</button>
+            <button type="submit" className="f-btn f-btn-primary" disabled={loading} style={{ flex:2, padding:'12px' }}>
+              {loading ? <><div className="spinner" style={{ width:18, height:18 }}/> Salvando...</> : <><Save size={16}/> Salvar Evento</>}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {whatsModal && (
+        <WhatsAppModal
+          evento={eventoParaWhats}
+          fotógrafo={user}
+          clientePhone={clientePhone}
+          onClose={() => setWhatsModal(false)}
+        />
+      )}
+    </Layout>
+  );
+}
+
+export function NovoEvento() {
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  const submit = async (data) => {
+    if (!data.clientId && !data.clientName) { toast.error('Informe o cliente'); return; }
+    if (!data.eventType) { toast.error('Tipo de evento obrigatório'); return; }
+    setLoading(true);
+    try {
+      await api.post('/api/events', data);
+      toast.success('Evento criado!');
+      navigate('/eventos');
+    } catch (e) { toast.error(e.response?.data?.error || 'Erro ao criar evento'); }
+    finally { setLoading(false); }
+  };
+
+  return <EventoForm title="Novo Evento" onSubmit={submit} loading={loading}/>;
+}
+
+export function EditarEvento() {
+  const { id }    = useParams();
+  const navigate  = useNavigate();
+  const [loading, setLoading] = useState(false);
+  const [initial, setInitial] = useState(null);
+
+  useEffect(() => {
+    api.get(`/api/events/${id}`).then(r => {
+      const ev = r.data;
+      const d  = ev.eventDate ? new Date(ev.eventDate) : null;
+      setInitial({
+        ...ev,
+        clientId:     ev.clientId     || '',
+        eventDate:    d ? d.toISOString().split('T')[0] : '',
+        eventTime:    d ? d.toTimeString().slice(0,5)   : '09:00',
+        totalValue:   ev.totalValue?.toString()   || '',
+        amountPaid:   ev.amountPaid?.toString()   || '0',
+        installments: ev.installments?.toString() || '1',
+        dueDay:       ev.dueDay?.toString()        || '',
+        firstDueDate: ev.firstDueDate ? ev.firstDueDate.split('T')[0] : '',
+      });
+    }).catch(() => { toast.error('Evento não encontrado'); navigate('/eventos'); });
+  }, [id]);
+
+  const submit = async (data) => {
+    setLoading(true);
+    try {
+      await api.put(`/api/events/${id}`, data);
+      toast.success('Evento atualizado!');
+      navigate('/eventos');
+    } catch (e) { toast.error(e.response?.data?.error || 'Erro ao atualizar'); }
+    finally { setLoading(false); }
+  };
+
+  if (!initial) return (
+    <Layout><div style={{ display:'flex', justifyContent:'center', padding:60 }}><div className="spinner" style={{ width:32, height:32 }}/></div></Layout>
+  );
+
+  return <EventoForm title="Editar Evento" initialData={initial} onSubmit={submit} loading={loading}/>;
+}
+
+export default NovoEvento;
