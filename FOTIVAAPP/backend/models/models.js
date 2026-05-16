@@ -30,13 +30,13 @@ const installmentSchema = new mongoose.Schema({
 }, { _id: true });
 
 const eventSchema = new mongoose.Schema({
-  userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
-  clientId:    { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
-  clientName:  { type: String, default: '' },
-  clientEmail: { type: String, default: '' },
-  eventType:   { type: String, required: true },
-  eventDate:   { type: Date },
-  location:    { type: String, default: '' },
+  userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  clientId:   { type: mongoose.Schema.Types.ObjectId, ref: 'Client', required: true },
+  clientName: { type: String, default: '' },
+  clientEmail:{ type: String, default: '' },
+  eventType:  { type: String, required: true },
+  eventDate:  { type: Date },
+  location:   { type: String, default: '' },
   status: {
     type: String,
     enum: ['orcamento','contrato_enviado','sinal_recebido','confirmado','realizado','fotos_entregues','concluido','cancelado'],
