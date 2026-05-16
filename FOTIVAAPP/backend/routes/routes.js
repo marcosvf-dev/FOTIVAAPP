@@ -178,6 +178,19 @@ eventRouter.patch('/:id/status', async (req, res) => {
   res.json({ status: ev.status, statusHistory: ev.statusHistory });
 });
 
+
+// PATCH /api/events/:id/archive — arquiva sem perder financeiro
+eventRouter.patch('/:id/archive', async (req, res) => {
+  const { archived } = req.body;
+  const ev = await Event.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    { $set: { archived: !!archived } },
+    { new: true }
+  );
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
+  res.json({ ok: true, archived: ev.archived });
+});
+
 // POST /api/events/:id/signature — salva assinatura digital do contrato
 eventRouter.post('/:id/signature', async (req, res) => {
   const { signature, contractNumber, signedAt } = req.body;
