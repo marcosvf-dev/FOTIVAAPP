@@ -50,7 +50,7 @@ export default function Galerias() {
       setGalleries(data);
     } catch(e) {
       if (e.response?.status === 403) {
-        toast.error('Galeria disponível apenas no plano PRO');
+        toast.error('Galeria disponivel apenas no plano PRO');
         navigate('/assinatura');
       }
     }
@@ -67,7 +67,7 @@ export default function Galerias() {
 
   async function createGallery() {
     if (!form.title || !form.clientName || !form.clientEmail || !form.password)
-      return toast.error('Preencha todos os campos obrigatórios');
+      return toast.error('Preencha todos os campos obrigatorios');
     try {
       await api.post('/api/gallery/photographer', form);
       toast.success('Galeria criada!');
@@ -113,7 +113,7 @@ export default function Galerias() {
   }
 
   async function closeGallery() {
-    if (!window.confirm(`Encerrar a galeria "${current.title}"?\n\nTodas as fotos serão APAGADAS permanentemente.`)) return;
+    if (!window.confirm(`Encerrar a galeria "${current.title}"?\n\nAs fotos serao APAGADAS permanentemente.`)) return;
     setClosing(true);
     try {
       await api.post(`/api/gallery/photographer/${current._id}/close`);
@@ -124,12 +124,22 @@ export default function Galerias() {
     setClosing(false);
   }
 
+  async function deleteGallery() {
+    if (!window.confirm(`EXCLUIR a galeria "${current.title}" permanentemente?\n\nTodas as fotos serao apagadas e esta acao nao pode ser desfeita.`)) return;
+    try {
+      await api.delete(`/api/gallery/photographer/${current._id}`);
+      toast.success('Galeria excluida permanentemente!');
+      setModal(null); setCurrent(null);
+      loadGalleries();
+    } catch(e) { toast.error('Erro ao excluir galeria'); }
+  }
+
   async function toggleSetting(key, value) {
     try {
       await api.patch(`/api/gallery/photographer/${current._id}/settings`, { [key]: value });
       setCurrent(c => ({ ...c, [key]: value }));
       toast.success(value ? 'Ativado!' : 'Desativado!');
-    } catch(e) { toast.error('Erro ao atualizar configuração'); }
+    } catch(e) { toast.error('Erro ao atualizar configuracao'); }
   }
 
   function copyLink(gal) {
@@ -149,7 +159,6 @@ export default function Galerias() {
     </Layout>
   );
 
-  // Gerenciar galeria — fora do Layout para não sobrepor sidebar
   if (modal === 'gallery' && current) {
     return (
       <div style={{ minHeight:'100vh', background:'#080808', overflowY:'auto', padding:20, fontFamily:'Inter,sans-serif' }}>
@@ -159,7 +168,7 @@ export default function Galerias() {
             <div style={{ display:'flex', alignItems:'center', gap:14 }}>
               <button onClick={() => { setModal(null); setCurrent(null); }}
                 style={{ background:'rgba(255,255,255,.06)', border:'1px solid rgba(255,255,255,.1)', borderRadius:9, padding:'8px 14px', color:'#888', cursor:'pointer', display:'flex', alignItems:'center', gap:6, fontSize:13, fontFamily:'inherit' }}>
-                {'<-'} Voltar
+                &larr; Voltar
               </button>
               <div>
                 <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:0 }}>{current.title}</h2>
@@ -173,16 +182,22 @@ export default function Galerias() {
               </button>
               {selectedCount > 0 && (
                 <button onClick={sendSelection} disabled={sending}
-                  style={btnStyle({ background:'rgba(34,197,94,.12)', border:'1px solid rgba(34,197,94,.25)', color:'#22C55E', opacity:sending ? .6 : 1 })}>
+                  style={btnStyle({ background:'rgba(34,197,94,.12)', border:'1px solid rgba(34,197,94,.25)', color:'#22C55E', opacity:sending?.6:1 })}>
                   <Send size={14}/> {sending ? 'Enviando...' : `Enviar selecao (${selectedCount})`}
                 </button>
               )}
               {current.status === 'active' && (
                 <button onClick={closeGallery} disabled={closing}
-                  style={btnStyle({ background:'rgba(239,68,68,.1)', border:'1px solid rgba(239,68,68,.2)', color:'#EF4444', opacity:closing ? .6 : 1 })}>
+                  title="Encerra a galeria e apaga as fotos"
+                  style={btnStyle({ background:'rgba(239,68,68,.08)', border:'1px solid rgba(239,68,68,.2)', color:'#EF4444', opacity:closing?.6:1 })}>
                   <Lock size={14}/> {closing ? 'Encerrando...' : 'Encerrar'}
                 </button>
               )}
+              <button onClick={deleteGallery}
+                title="Exclui a galeria permanentemente"
+                style={btnStyle({ background:'rgba(239,68,68,.15)', border:'1px solid rgba(239,68,68,.4)', color:'#ff6b6b' })}>
+                <Trash2 size={14}/> Excluir
+              </button>
             </div>
           </div>
 
@@ -247,16 +262,12 @@ export default function Galerias() {
                 <div style={{ color:OR }}>
                   <Loader size={28} style={{ animation:'spin 1s linear infinite', marginBottom:8 }}/>
                   <div style={{ fontSize:14, fontWeight:600 }}>Enviando fotos...</div>
-                  {current.watermarkEnabled && <div style={{ fontSize:12, color:'#666', marginTop:4 }}>Aplicando marca dagua...</div>}
                 </div>
               ) : (
                 <>
                   <Upload size={28} color={OR} style={{ marginBottom:10 }}/>
                   <div style={{ color:'#ccc', fontSize:14, fontWeight:600 }}>Arraste fotos ou clique para selecionar</div>
-                  <div style={{ color:'#555', fontSize:12, marginTop:6 }}>
-                    JPG, PNG · Max 50MB por foto · Compressao automatica
-                    {current.watermarkEnabled && ' · Marca dagua sera aplicada'}
-                  </div>
+                  <div style={{ color:'#555', fontSize:12, marginTop:6 }}>JPG, PNG · Max 50MB por foto · Compressao automatica</div>
                 </>
               )}
             </div>
@@ -297,7 +308,6 @@ export default function Galerias() {
     );
   }
 
-  // Lista de galerias
   return (
     <Layout>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
