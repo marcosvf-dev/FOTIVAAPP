@@ -34,6 +34,7 @@ const gallerySchema = new mongoose.Schema({
   closedAt:        { type: Date },
 });
 
+// TTL index — MongoDB apaga automaticamente quando expiresAt passa
 gallerySchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 gallerySchema.index({ userId: 1 });
 gallerySchema.index({ eventId: 1 });
