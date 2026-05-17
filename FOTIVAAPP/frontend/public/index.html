@@ -23,31 +23,7 @@
   <meta name="apple-mobile-web-app-title" content="Fotiva"/>
   <meta name="theme-color" content="#080808"/>
   <meta name="msapplication-navbutton-color" content="#080808"/>
-  <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-  <script>
-    window.OneSignalDeferred = window.OneSignalDeferred || [];
-    OneSignalDeferred.push(async function(OneSignal) {
-      await OneSignal.init({
-        appId: "b4e7ad54-4540-4993-9e09-0f78a69389f9",
-        notifyButton: { enable: false },
-        promptOptions: {
-          slidedown: {
-            prompts: [{
-              type: "push",
-              autoPrompt: false,
-            }]
-          }
-        }
-      });
-      // Vincula o dispositivo ao userId do Fotiva
-      var userId = localStorage.getItem('onesignal_user_id');
-      if (userId) {
-        OneSignal.login(userId).catch(function(e) {
-          console.log('OneSignal login error:', e);
-        });
-      }
-    });
-  </script>
+    <meta name="vapid-public-key" content="BN8U7a8cr8x2Z-f_3V31JT5qgQ2ZC8hDH8VP5iWJYRpv5tQloqa-fRnxC-V9oJSYYlH_MppPG9ETuTsilcZdyIc" />
 </head>
   <body style="margin:0;background:#080808;overflow-x:hidden;width:100%;min-height:100dvh">
     <noscript>Você precisa de JavaScript para usar o Fotiva.</noscript>
