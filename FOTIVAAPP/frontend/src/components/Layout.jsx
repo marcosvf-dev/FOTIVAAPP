@@ -3,7 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import {
   LayoutDashboard, CalendarDays, Calendar, Users,
-  DollarSign, Image, Settings, LogOut, Menu, X, Megaphone
+  DollarSign, Image, Settings, LogOut, Menu, X, Megaphone, Calculator
 } from 'lucide-react';
 import Assistente from './Assistente';
 
@@ -17,6 +17,7 @@ const nav = [
   { to: '/pagamentos',   icon: DollarSign,      label: 'Pagamentos' },
   { to: '/galerias',     icon: Image,           label: 'Galerias PRO' },
   { to: '/parceiros',    icon: Megaphone,       label: 'Parceiros' },
+  { to: '/calculadora',  icon: Calculator,      label: 'Calculadora' },
   { to: '/configuracoes',icon: Settings,        label: 'Configurações' },
 ];
 
