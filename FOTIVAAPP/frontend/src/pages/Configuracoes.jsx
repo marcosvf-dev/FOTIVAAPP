@@ -63,61 +63,60 @@ export default function Configuracoes() {
   async function ativarNotificacoes() {
     setNotifLoading(true);
     try {
-      if (!('Notification' in window)) {
-        toast.error('Este navegador não suporta notificações push.');
+      if (!('Notification' in window) && !('serviceWorker' in navigator)) {
+        toast.error('Este navegador nao suporta notificacoes push.');
         setNotifLoading(false);
         return;
       }
+
+      // Pede permissao ao usuario
       const perm = await Notification.requestPermission();
       setNotifStatus(perm);
+
       if (perm !== 'granted') {
-        toast.error('Permissão negada. Vá em Configurações do celular → Safari/Chrome → Notificações → Permitir para Fotiva.');
+        toast.error('Permissao negada. Va em Ajustes → Fotiva → Notificacoes → Permitir.');
         setNotifLoading(false);
         return;
       }
+
+      // Registra service worker e subscreve
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
           await reg.update();
           await navigator.serviceWorker.ready;
-          try {
-            const { data: vapidData } = await api.get('/api/push/vapid-key');
-            if (vapidData?.key) {
-              const existing = await reg.pushManager.getSubscription();
-              if (existing) await existing.unsubscribe();
-              const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(vapidData.key) });
-              await api.post('/api/push/subscribe', { subscription: sub.toJSON() });
-            }
-          } catch (vapidErr) {
-            console.log('VAPID não disponível:', vapidErr.message);
+
+          // Busca chave VAPID do backend
+          const { data: vapidData } = await api.get('/api/push/vapid-key');
+          if (vapidData?.key) {
+            // Remove subscription antiga se existir
+            const existing = await reg.pushManager.getSubscription();
+            if (existing) await existing.unsubscribe();
+
+            // Cria nova subscription
+            const sub = await reg.pushManager.subscribe({
+              userVisibleOnly: true,
+              applicationServerKey: urlBase64ToUint8Array(vapidData.key),
+            });
+
+            // Salva no backend
+            await api.post('/api/push/subscribe', { subscription: sub.toJSON() });
           }
         } catch (swErr) {
-          console.log('SW error:', swErr.message);
+          console.log('SW/Push error:', swErr.message);
+          // Mesmo com erro no SW, marca como ativo se a permissao foi concedida
         }
       }
-      // Faz login no OneSignal com o userId do usuário
-      try {
-        if (window.OneSignal && user?._id) {
-          await window.OneSignal.login(user._id.toString());
-          localStorage.setItem('onesignal_user_id', user._id.toString());
-        }
-      } catch(osErr) { console.log('OneSignal login:', osErr.message); }
 
       setPushActive(true);
       localStorage.setItem('push_active', 'true');
       localStorage.setItem('push_permission', 'granted');
-      toast.success('✅ Notificações ativadas!');
-      setTimeout(() => {
-        if (Notification.permission === 'granted') {
-          new Notification('🎉 Fotiva — Notificações ativas!', { body: 'Você será avisado antes dos seus eventos.', icon: '/favicon.ico' });
-        }
-      }, 1000);
+      toast.success('Notificacoes ativadas!');
+
     } catch (e) {
       toast.error('Erro ao ativar: ' + (e.message || 'Tente novamente'));
     }
     setNotifLoading(false);
-  }
-
   async function desativarNotificacoes() {
     setNotifLoading(true);
     try {
