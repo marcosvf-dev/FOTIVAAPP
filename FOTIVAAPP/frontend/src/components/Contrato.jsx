@@ -41,6 +41,7 @@ export default function Contrato({ eventoId, onClose }) {
   });
 
   useEffect(() => {
+    if (!eventoId) return;
     async function load() {
       try {
         const [evRes, userRes] = await Promise.all([
