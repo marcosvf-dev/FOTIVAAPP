@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Layout from '../components/Layout';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { DollarSign, Calendar, Users, Clock, Plus, TrendingUp, TrendingDown, BarChart2 } from 'lucide-react';
+import { DollarSign, Calendar, Users, Clock, Plus, TrendingUp, TrendingDown, BarChart2, Gift } from 'lucide-react';
 import api from '../lib/api';
 
 const OR = '#E87722';
@@ -68,15 +68,18 @@ export default function Dashboard() {
   const [stats,      setStats]      = useState(null);
   const [extraStats, setExtraStats] = useState(null);
   const [loading,    setLoading]    = useState(true);
-  const [verGrafico, setVerGrafico] = useState(false);
+  const [verGrafico,      setVerGrafico]      = useState(false);
+  const [aniversariantes, setAniversariantes] = useState([]);
 
   useEffect(() => {
     Promise.all([
       api.get('/api/dashboard/stats'),
       api.get('/api/dashboard/extra').catch(() => ({ data: null })),
-    ]).then(([r1, r2]) => {
+      api.get('/api/clients/aniversariantes').catch(() => ({ data: [] })),
+    ]).then(([r1, r2, r3]) => {
       setStats(r1.data);
       setExtraStats(r2.data);
+      setAniversariantes(r3.data || []);
     }).catch(() => {}).finally(() => setLoading(false));
   }, []);
 
@@ -244,6 +247,51 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Aniversariantes do mes */}
+      {aniversariantes.length > 0 && (
+        <div style={{ background:'#111', border:'1px solid rgba(255,255,255,0.06)', borderRadius:16, padding:20, marginBottom:20 }}>
+          <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:16 }}>
+            <Gift size={16} color="#E87722"/>
+            <div style={{ color:'#888', fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:.5 }}>
+              Aniversariantes do mes
+            </div>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {aniversariantes.map((c, i) => {
+              const hoje = new Date();
+              const nasc = new Date(c.birthdate);
+              const aniv = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate());
+              const diff = Math.ceil((aniv - hoje) / 86400000);
+              const isHoje   = diff === 0;
+              const isSemana = diff > 0 && diff <= 7;
+              return (
+                <div key={i} style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isHoje ? 'rgba(232,119,34,0.08)' : '#161616', borderRadius:10, border: isHoje ? '1px solid rgba(232,119,34,0.25)' : '1px solid rgba(255,255,255,.04)' }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+                    <span style={{ fontSize:20 }}>{isHoje ? '🎂' : '🎁'}</span>
+                    <div>
+                      <div style={{ color:'#ddd', fontSize:13, fontWeight:600 }}>{c.name}</div>
+                      <div style={{ color:'#555', fontSize:11, marginTop:2 }}>
+                        {nasc.getDate()}/{nasc.getMonth()+1} · {hoje.getFullYear() - nasc.getFullYear()} anos
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                    {isHoje && <span style={{ background:'rgba(232,119,34,.15)', color:'#E87722', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:20 }}>Hoje!</span>}
+                    {isSemana && !isHoje && <span style={{ background:'rgba(59,130,246,.1)', color:'#3B82F6', fontSize:10, fontWeight:700, padding:'3px 8px', borderRadius:20 }}>Em {diff}d</span>}
+                    {c.phone && (
+                      <button onClick={() => window.open(`https://wa.me/55${c.phone.replace(/\D/g,'')}?text=${encodeURIComponent(`Feliz aniversario, ${c.name.split(' ')[0]}! Que seu dia seja muito especial! 🎂🎉`)}`, '_blank')}
+                        style={{ width:28, height:28, borderRadius:7, background:'rgba(37,211,102,.1)', border:'1px solid rgba(37,211,102,.2)', color:'#25D366', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', fontSize:12 }}>
+                        💬
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Histórico de pagamentos recentes */}
       {extraStats?.pagamentosRecentes?.length > 0 && (
