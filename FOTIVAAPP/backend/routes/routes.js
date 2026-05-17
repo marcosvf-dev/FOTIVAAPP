@@ -406,7 +406,7 @@ module.exports.expenseRouter = expenseRouter;
 module.exports.Expense = Expense;
 
 // ═══ EQUIPAMENTOS ═══════════════════════════════════════════════════
-const equipmentRouter = express.Router();
+const equipmentRouter = require('express').Router();
 
 equipmentRouter.get('/', async (req, res) => {
   const items = await Equipment.find({ userId: req.user._id }).sort({ createdAt: -1 });
@@ -446,7 +446,7 @@ equipmentRouter.delete('/:id', async (req, res) => {
 });
 
 // ═══ CONFIGURAÇÕES DA CALCULADORA ═══════════════════════════════════
-const settingsRouter = express.Router();
+const settingsRouter = require('express').Router();
 
 settingsRouter.get('/calculator', async (req, res) => {
   let settings = await UserSettings.findOne({ userId: req.user._id });
