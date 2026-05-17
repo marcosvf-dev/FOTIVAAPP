@@ -27,6 +27,7 @@ async function sendPushToUser(userId, payload) {
   } catch (e) {
     if (e.statusCode === 410 || e.statusCode === 404) {
       await User.findByIdAndUpdate(userId, { pushSubscription: null });
+      console.log('[push] Subscription expirada removida:', userId);
     } else {
       console.error('[push] Erro:', e.message);
     }
@@ -61,8 +62,8 @@ router.post('/unsubscribe', auth, async (req, res) => {
 router.post('/test', auth, requireActive, async (req, res) => {
   try {
     await sendPushToUser(req.user._id, {
-      title: 'Fotiva — Teste',
-      body:  'Notificacoes push funcionando!',
+      title: '🎉 Fotiva — Teste',
+      body:  'Notificacoes push funcionando perfeitamente!',
       data:  { url: '/dashboard' },
     });
     res.json({ ok: true });
@@ -77,11 +78,13 @@ router.post('/notify-events', async (req, res) => {
 
   try {
     const Event = require('../models/models').Event;
+
     const hoje   = new Date(); hoje.setHours(0,0,0,0);
     const amanha = new Date(hoje); amanha.setDate(amanha.getDate() + 1);
     const em2    = new Date(hoje); em2.setDate(em2.getDate() + 2);
     let notificados = 0;
 
+    // Eventos nas proximas 48h
     const eventos = await Event.find({
       eventDate: { $gte: hoje, $lte: em2 },
       status: { $ne: 'cancelado' },
@@ -93,51 +96,60 @@ router.post('/notify-events', async (req, res) => {
       if (!user?.pushSubscription) continue;
       const dataEv   = new Date(ev.eventDate); dataEv.setHours(0,0,0,0);
       const diffDias = Math.round((dataEv - hoje) / 86400000);
-      let msg = diffDias === 0
-        ? `Hoje voce tem ${ev.eventType} — ${ev.clientName}! Boa sorte!`
-        : diffDias === 1
-        ? `Amanha: ${ev.eventType} — ${ev.clientName}. Tudo preparado?`
-        : `Em ${diffDias} dias: ${ev.eventType} — ${ev.clientName}.`;
-      await sendPushToUser(user._id, { title: 'Fotiva — Lembrete', body: msg, data: { url: '/eventos' } });
+      let msg = '';
+      if (diffDias === 0)      msg = `📸 Hoje voce tem ${ev.eventType} — ${ev.clientName}! Boa sorte!`;
+      else if (diffDias === 1) msg = `⏰ Amanha: ${ev.eventType} — ${ev.clientName}. Tudo preparado?`;
+      else                     msg = `📅 Em ${diffDias} dias: ${ev.eventType} — ${ev.clientName}.`;
+      await sendPushToUser(user._id, {
+        title: 'Fotiva — Lembrete de Evento',
+        body: msg, data: { url: '/eventos' },
+      });
       notificados++;
     }
 
+    // Parcelas vencendo hoje ou amanha
     const eventosComParcelas = await Event.find({
-      'installmentList.paid': false,
+      'installmentList.paid':    false,
       'installmentList.dueDate': { $gte: hoje, $lte: amanha },
     }).populate('userId');
 
     for (const ev of eventosComParcelas) {
-      if (!ev.userId?.pushSubscription) continue;
+      const user = ev.userId;
+      if (!user?.pushSubscription) continue;
       for (const inst of ev.installmentList) {
         if (inst.paid) continue;
         const due = new Date(inst.dueDate); due.setHours(0,0,0,0);
         const diff = Math.round((due - hoje) / 86400000);
         if (diff < 0 || diff > 1) continue;
         const msg = diff === 0
-          ? `Hoje vence parcela ${inst.number}/${inst.total} de ${ev.clientName} — R$${inst.value.toFixed(2)}`
-          : `Amanha vence parcela ${inst.number}/${inst.total} de ${ev.clientName} — R$${inst.value.toFixed(2)}`;
-        await sendPushToUser(ev.userId._id, { title: 'Fotiva — Vencimento', body: msg, data: { url: '/pagamentos' } });
+          ? `💰 Hoje vence parcela ${inst.number}/${inst.total} de ${ev.clientName} — R$${inst.value.toFixed(2)}`
+          : `💰 Amanha vence parcela ${inst.number}/${inst.total} de ${ev.clientName} — R$${inst.value.toFixed(2)}`;
+        await sendPushToUser(user._id, {
+          title: 'Fotiva — Vencimento de Parcela',
+          body: msg, data: { url: '/pagamentos' },
+        });
         notificados++;
       }
     }
 
+    // Inadimplencia — +3 dias de atraso
     const tresDiasAtras = new Date(hoje); tresDiasAtras.setDate(tresDiasAtras.getDate() - 3);
     const atrasados = await Event.find({
-      'installmentList.paid': false,
+      'installmentList.paid':    false,
       'installmentList.dueDate': { $lte: tresDiasAtras },
     }).populate('userId');
 
     for (const ev of atrasados) {
-      if (!ev.userId?.pushSubscription) continue;
+      const user = ev.userId;
+      if (!user?.pushSubscription) continue;
       for (const inst of ev.installmentList) {
         if (inst.paid) continue;
         const due = new Date(inst.dueDate); due.setHours(0,0,0,0);
         const diff = Math.round((due - hoje) / 86400000);
         if (diff > -3) continue;
-        await sendPushToUser(ev.userId._id, {
-          title: 'Fotiva — Pagamento Atrasado',
-          body: `Parcela ${inst.number}/${inst.total} de ${ev.clientName} esta ${Math.abs(diff)} dias em atraso`,
+        await sendPushToUser(user._id, {
+          title: '⚠️ Fotiva — Pagamento em Atraso',
+          body: `Parcela ${inst.number}/${inst.total} de ${ev.clientName} esta ${Math.abs(diff)} dias em atraso — R$${inst.value.toFixed(2)}`,
           data: { url: '/pagamentos' },
         });
         notificados++;
