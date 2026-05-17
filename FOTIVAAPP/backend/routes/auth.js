@@ -68,6 +68,84 @@ router.post('/register', async (req, res) => {
   });
 
   res.status(201).json({ token: sign(user), user: sanitize(user) });
+
+  // Email de boas-vindas (em background)
+  try {
+    const trialDias = 7;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://fotivaapp-frontend.onrender.com';
+    await getTransporter().sendMail({
+      from:    `"Fotiva" <${process.env.SMTP_USER}>`,
+      to:      user.email,
+      subject: `Bem-vindo ao Fotiva, ${safeName.split(' ')[0]}! 🎉`,
+      html: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+
+    <!-- Header -->
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:32px;font-weight:900;color:#E87722;letter-spacing:-1px;">FOTIVA</div>
+      <div style="color:#555;font-size:13px;margin-top:4px;">Seu estudio na palma da mao</div>
+    </div>
+
+    <!-- Hero -->
+    <div style="background:linear-gradient(135deg,#E87722,#C85A00);border-radius:20px;padding:36px 28px;text-align:center;margin-bottom:24px;">
+      <div style="font-size:48px;margin-bottom:16px;">🎉</div>
+      <h1 style="color:#fff;font-size:24px;font-weight:900;margin:0 0 12px;">Bem-vindo, ${safeName.split(' ')[0]}!</h1>
+      <p style="color:rgba(255,255,255,0.85);font-size:15px;line-height:1.6;margin:0;">
+        Voce tem <strong>${trialDias} dias gratis</strong> para explorar tudo que o Fotiva oferece.
+        Nao precisa de cartao de credito agora.
+      </p>
+    </div>
+
+    <!-- Funcionalidades -->
+    <div style="background:#111;border:1px solid #222;border-radius:16px;padding:24px;margin-bottom:20px;">
+      <h2 style="color:#fff;font-size:16px;font-weight:800;margin:0 0 20px;">O que voce pode fazer com o Fotiva:</h2>
+      ${[
+        ['📅', 'Gerenciar eventos', 'Casamentos, ensaios, aniversarios e muito mais com controle total de status'],
+        ['💰', 'Controle financeiro', 'Parcelas, pagamentos, inadimplencia e relatorios de receita'],
+        ['📄', 'Contratos digitais', 'Gere e assine contratos com seu cliente sem sair do app'],
+        ['📸', 'Galeria de fotos PRO', 'Deixe seu cliente escolher as fotos favoritas online'],
+        ['🔔', 'Notificacoes push', 'Alertas de eventos e pagamentos para nao perder nenhum compromisso'],
+        ['💡', 'Calculadora de preco', 'Descubra o valor justo para cada servico'],
+      ].map(([icon, title, desc]) => `
+        <div style="display:flex;gap:14px;margin-bottom:16px;align-items:flex-start;">
+          <div style="width:36px;height:36px;background:rgba(232,119,34,0.12);border:1px solid rgba(232,119,34,0.2);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">${icon}</div>
+          <div>
+            <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:3px;">${title}</div>
+            <div style="color:#666;font-size:12px;line-height:1.5;">${desc}</div>
+          </div>
+        </div>
+      `).join('')}
+    </div>
+
+    <!-- CTA -->
+    <div style="text-align:center;margin-bottom:24px;">
+      <a href="${frontendUrl}/dashboard"
+        style="display:inline-block;background:linear-gradient(135deg,#E87722,#C85A00);color:#fff;padding:16px 40px;border-radius:12px;text-decoration:none;font-size:16px;font-weight:800;">
+        Acessar o Fotiva →
+      </a>
+    </div>
+
+    <!-- Trial info -->
+    <div style="background:#1a1a1a;border:1px solid rgba(232,119,34,0.2);border-radius:12px;padding:16px 20px;margin-bottom:20px;text-align:center;">
+      <div style="color:#E87722;font-size:13px;font-weight:700;margin-bottom:4px;">⏰ Seu periodo gratuito</div>
+      <div style="color:#888;font-size:12px;line-height:1.6;">
+        Voce tem <strong style="color:#fff;">${trialDias} dias</strong> para testar gratuitamente.
+        Apos esse periodo, escolha o plano ideal para o seu negocio.
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="text-align:center;color:#444;font-size:11px;line-height:1.7;">
+      <div>Duvidas? Responda este email que te ajudamos.</div>
+      <div style="margin-top:8px;">© 2026 Fotiva · <a href="${frontendUrl}/termos" style="color:#555;">Termos de uso</a></div>
+    </div>
+
+  </div>
+</body></html>`,
+    });
+  } catch(emailErr) { console.error('[register] Email boas-vindas:', emailErr.message); }
 });
 
 // POST /api/auth/login
@@ -245,6 +323,77 @@ router.post('/contract-number', auth, async (req, res) => {
   const year   = new Date().getFullYear();
   const number = String(user.contractCounter).padStart(3, '0') + '/' + year;
   res.json({ number });
+});
+
+// POST /api/auth/trial-alert — cron-job: envia alerta 2 dias antes do trial expirar
+router.post('/trial-alert', async (req, res) => {
+  const secret = req.headers['x-cron-secret'];
+  if (secret !== process.env.CRON_SECRET)
+    return res.status(403).json({ error: 'Acesso negado.' });
+
+  try {
+    const hoje    = new Date(); hoje.setHours(0,0,0,0);
+    const em2dias = new Date(hoje); em2dias.setDate(em2dias.getDate() + 2);
+    const em3dias = new Date(hoje); em3dias.setDate(em3dias.getDate() + 3);
+
+    const users = await User.find({
+      'subscription.status':      'trial',
+      'subscription.trialEndsAt': { $gte: em2dias, $lt: em3dias },
+    });
+
+    let enviados = 0;
+    const frontendUrl = process.env.FRONTEND_URL || 'https://fotivaapp-frontend.onrender.com';
+
+    for (const user of users) {
+      try {
+        await getTransporter().sendMail({
+          from:    `"Fotiva" <${process.env.SMTP_USER}>`,
+          to:      user.email,
+          subject: `⏰ Seu trial do Fotiva termina em 2 dias`,
+          html: `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#0a0a0a;font-family:Arial,sans-serif;">
+  <div style="max-width:560px;margin:0 auto;padding:32px 20px;">
+
+    <div style="text-align:center;margin-bottom:28px;">
+      <div style="font-size:32px;font-weight:900;color:#E87722;">FOTIVA</div>
+    </div>
+
+    <div style="background:#111;border:1px solid #333;border-radius:16px;padding:32px;text-align:center;margin-bottom:20px;">
+      <div style="font-size:48px;margin-bottom:16px;">⏰</div>
+      <h1 style="color:#fff;font-size:22px;font-weight:900;margin:0 0 12px;">Seu periodo gratuito termina em 2 dias</h1>
+      <p style="color:#888;font-size:14px;line-height:1.7;margin:0 0 24px;">
+        Ola, <strong style="color:#fff;">${user.name.split(' ')[0]}</strong>! Seu trial do Fotiva termina em breve.<br/>
+        Assine agora para continuar gerenciando seu estudio sem interrupcao.
+      </p>
+      <a href="${frontendUrl}/assinatura"
+        style="display:inline-block;background:linear-gradient(135deg,#E87722,#C85A00);color:#fff;padding:14px 36px;border-radius:12px;text-decoration:none;font-size:15px;font-weight:800;">
+        Ver planos e assinar →
+      </a>
+    </div>
+
+    <div style="background:#111;border:1px solid #222;border-radius:14px;padding:20px;margin-bottom:20px;">
+      <div style="color:#888;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:14px;">O que voce perde se nao assinar:</div>
+      ${['Acesso a todos os eventos e clientes','Galerias de fotos para seus clientes','Contratos digitais com assinatura','Notificacoes de lembretes de eventos','Calculadora de precificacao','Historico financeiro completo'].map(item =>
+        `<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;"><span style="color:#EF4444;font-size:16px;">✗</span><span style="color:#aaa;font-size:13px;">${item}</span></div>`
+      ).join('')}
+    </div>
+
+    <div style="text-align:center;color:#444;font-size:11px;">
+      © 2026 Fotiva · <a href="${frontendUrl}/termos" style="color:#555;">Termos de uso</a>
+    </div>
+
+  </div>
+</body></html>`,
+        });
+        enviados++;
+      } catch(e) { console.error('[trial-alert] email error:', e.message); }
+    }
+
+    res.json({ ok: true, enviados, total: users.length });
+  } catch(e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 module.exports = router;
