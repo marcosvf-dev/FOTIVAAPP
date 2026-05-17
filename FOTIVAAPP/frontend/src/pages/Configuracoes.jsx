@@ -95,6 +95,14 @@ export default function Configuracoes() {
           console.log('SW error:', swErr.message);
         }
       }
+      // Faz login no OneSignal com o userId do usuário
+      try {
+        if (window.OneSignal && user?._id) {
+          await window.OneSignal.login(user._id.toString());
+          localStorage.setItem('onesignal_user_id', user._id.toString());
+        }
+      } catch(osErr) { console.log('OneSignal login:', osErr.message); }
+
       setPushActive(true);
       localStorage.setItem('push_active', 'true');
       localStorage.setItem('push_permission', 'granted');
