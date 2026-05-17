@@ -23,12 +23,9 @@ function gerarParcelas(totalValue, amountPaid, installments, firstDueDate, dueDa
       due.setMonth(due.getMonth() + i + 1);
     }
     parcelas.push({
-      number: i + 1,
-      total:  installments,
-      value:  parseFloat(valorParcela.toFixed(2)),
-      dueDate: due,
-      paid: false,
-      paidAt: null,
+      number: i + 1, total: installments,
+      value: parseFloat(valorParcela.toFixed(2)),
+      dueDate: due, paid: false, paidAt: null,
     });
   }
   return parcelas;
@@ -55,7 +52,7 @@ router.post('/', auth, async (req, res) => {
 
   if (!eventType) return res.status(400).json({ error: 'Tipo de evento obrigatório' });
 
-  let finalClientId   = clientId;
+  let finalClientId = clientId;
   let finalClientName = clientName;
 
   if (!clientId && clientName) {
@@ -72,27 +69,21 @@ router.post('/', auth, async (req, res) => {
     parseFloat(totalValue) || 0,
     parseFloat(amountPaid) || 0,
     parseInt(installments) || 1,
-    firstDueDate,
-    dueDay
+    firstDueDate, dueDay
   );
 
   const ev = await Event.create({
-    userId:      req.user._id,
-    clientId:    finalClientId,
-    clientName:  finalClientName,
-    eventType,
-    eventDate:   eventDate   || null,
-    location:    location    || '',
-    status:      status      || 'confirmado',
+    userId: req.user._id, clientId: finalClientId, clientName: finalClientName,
+    eventType, eventDate: eventDate || null, location: location || '',
+    status: status || 'confirmado',
     statusHistory: [{ status: status || 'confirmado', changedAt: new Date() }],
-    totalValue:   parseFloat(totalValue)   || 0,
-    amountPaid:   parseFloat(amountPaid)   || 0,
-    installments: parseInt(installments)   || 1,
-    paymentType:  paymentType || 'pix',
-    dueDay:       parseInt(dueDay)         || null,
-    firstDueDate: firstDueDate             || null,
-    installmentList,
-    notes: notes || '',
+    totalValue: parseFloat(totalValue) || 0,
+    amountPaid: parseFloat(amountPaid) || 0,
+    installments: parseInt(installments) || 1,
+    paymentType: paymentType || 'pix',
+    dueDay: parseInt(dueDay) || null,
+    firstDueDate: firstDueDate || null,
+    installmentList, notes: notes || '',
   });
 
   res.status(201).json(ev);
@@ -152,34 +143,39 @@ router.put('/:id', auth, async (req, res) => {
 // PATCH /api/events/:id/status
 router.patch('/:id/status', auth, async (req, res) => {
   const { status, note } = req.body;
-
   const STATUS_VALIDOS = ['orcamento','contrato_enviado','sinal_recebido','confirmado','realizado','fotos_entregues','concluido','cancelado'];
   if (!STATUS_VALIDOS.includes(status))
     return res.status(400).json({ error: 'Status inválido.' });
-
   const ev = await Event.findOne({ _id: req.params.id, userId: req.user._id });
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
-
   ev.statusHistory = ev.statusHistory || [];
   ev.statusHistory.push({ status, changedAt: new Date(), note: note || '' });
   ev.status = status;
-
   await ev.save();
   res.json({ status: ev.status, statusHistory: ev.statusHistory });
+});
+
+// PATCH /api/events/:id/archive
+router.patch('/:id/archive', auth, async (req, res) => {
+  const { archived } = req.body;
+  const ev = await Event.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    { $set: { archived: !!archived } },
+    { new: true }
+  );
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
+  res.json({ ok: true, archived: ev.archived });
 });
 
 // PATCH /api/events/:id/installments/:installmentId
 router.patch('/:id/installments/:installmentId', auth, async (req, res) => {
   const ev = await Event.findOne({ _id: req.params.id, userId: req.user._id });
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
-
   const installment = ev.installmentList.id(req.params.installmentId);
   if (!installment) return res.status(404).json({ error: 'Parcela não encontrada' });
-
   const { paid } = req.body;
   installment.paid   = paid;
   installment.paidAt = paid ? new Date() : null;
-
   await ev.save();
   res.json(ev);
 });
@@ -188,20 +184,16 @@ router.patch('/:id/installments/:installmentId', auth, async (req, res) => {
 router.post('/:id/signature', auth, async (req, res) => {
   const { signature, contractNumber, signedAt } = req.body;
   if (!signature) return res.status(400).json({ error: 'Assinatura obrigatória' });
-
   const ev = await Event.findOneAndUpdate(
     { _id: req.params.id, userId: req.user._id },
-    {
-      $set: {
-        'contract.signature':      signature,
-        'contract.number':         contractNumber,
-        'contract.signedAt':       signedAt || new Date(),
-        'contract.signedByClient': true,
-      },
-    },
+    { $set: {
+      'contract.signature':      signature,
+      'contract.number':         contractNumber,
+      'contract.signedAt':       signedAt || new Date(),
+      'contract.signedByClient': true,
+    }},
     { new: true }
   );
-
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado' });
   res.json({ ok: true, signedAt: ev.contract?.signedAt });
 });
