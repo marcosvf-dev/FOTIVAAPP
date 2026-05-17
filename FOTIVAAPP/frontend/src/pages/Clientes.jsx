@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, Phone, Mail, Edit2, Trash2, X, Save, MapPin, Hash, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User } from 'lucide-react';
+import { Plus, Search, Phone, Mail, Edit2, Trash2, X, Save, MapPin, Hash, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, Gift } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '../lib/api';
 
@@ -12,7 +12,7 @@ const lbl = { display:'block', fontSize:10, fontWeight:700, color:'#555', textTr
 function fmtCPF(v='') { return v.replace(/\D/g,'').slice(0,11).replace(/(\d{3})(\d)/,'$1.$2').replace(/(\d{3})\.(\d{3})(\d)/,'$1.$2.$3').replace(/(\d{3})\.(\d{3})\.(\d{3})(\d)/,'$1.$2.$3-$4'); }
 function fmtPhone(v='') { return v.replace(/\D/g,'').slice(0,11).replace(/(\d{2})(\d)/,'($1) $2').replace(/(\d{4,5})(\d{4})$/,'$1-$2'); }
 
-const EMPTY_EDIT = { name:'', phone:'', email:'', cpf:'', address:'', city:'', state:'', complement:'', notes:'' };
+const EMPTY_EDIT = { name:'', phone:'', email:'', cpf:'', address:'', city:'', state:'', complement:'', notes:'', birthdate:'' };
 
 export default function Clientes() {
   const navigate = useNavigate();
@@ -62,7 +62,7 @@ export default function Clientes() {
 
   const startEdit = (c) => {
     setEditing(c);
-    setEditForm({ name:c.name||'', phone:c.phone||'', email:c.email||'', cpf:c.cpf||'', address:c.address||'', city:c.city||'', state:c.state||'', complement:c.complement||'', notes:c.notes||'' });
+    setEditForm({ name:c.name||'', phone:c.phone||'', email:c.email||'', cpf:c.cpf||'', address:c.address||'', city:c.city||'', state:c.state||'', complement:c.complement||'', notes:c.notes||'', birthdate:c.birthdate ? c.birthdate.split('T')[0] : '' });
   };
 
   const saveEdit = async () => {
@@ -153,6 +153,16 @@ export default function Clientes() {
                           {c.email && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Mail size={10}/>{c.email}</span>}
                           {c.cpf   && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Hash size={10}/>{c.cpf}</span>}
                           {c.city  && <span style={{ color:'#666', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><MapPin size={10}/>{c.city}{c.state?`/${c.state}`:''}</span>}
+                          {c.birthdate && (() => {
+                            const hoje = new Date(); hoje.setHours(0,0,0,0);
+                            const nasc = new Date(c.birthdate);
+                            const aniv = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate());
+                            const diff = Math.ceil((aniv - hoje) / 86400000);
+                            const isHoje = diff === 0;
+                            const isSemana = diff > 0 && diff <= 7;
+                            if (!isHoje && !isSemana) return null;
+                            return <span style={{ color: isHoje ? '#E87722' : '#3B82F6', fontSize:12, display:'flex', alignItems:'center', gap:4 }}><Gift size={10}/>{isHoje ? 'Aniversario hoje!' : `Aniversario em ${diff}d`}</span>;
+                          })()}
                         </div>
                       </div>
                       <div style={{ display:'flex', gap:6, alignItems:'center', flexShrink:0 }}>
@@ -271,6 +281,10 @@ export default function Clientes() {
               <div style={{ gridColumn:'1/-1' }}>
                 <label style={lbl}>Email</label>
                 <input type="email" value={editForm.email} onChange={e => setEditForm(f=>({...f,email:e.target.value}))} style={inp()} placeholder="email@exemplo.com"/>
+              </div>
+              <div>
+                <label style={lbl}>Data de Nascimento</label>
+                <input type="date" value={editForm.birthdate||''} onChange={e => setEditForm(f=>({...f,birthdate:e.target.value}))} style={inp()}/>
               </div>
               <div style={{ gridColumn:'1/-1' }}>
                 <label style={lbl}>Endereço</label>
