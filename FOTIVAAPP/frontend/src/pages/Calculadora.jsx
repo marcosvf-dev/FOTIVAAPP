@@ -42,7 +42,8 @@ export default function Calculadora() {
     kmDeslocamento:0,
     valorKm:       1.5,
     custoEquip:    50,
-    margem:        30,
+    equipamentos:  [],
+    margem:        40,
   });
   const [resultado, setResultado] = useState(null);
 
@@ -53,11 +54,14 @@ export default function Calculadora() {
     const nivel = NIVEIS.find(n => n.id === form.nivel) || NIVEIS[1];
     const reg   = REGIOES.find(r => r.id === form.regiao) || REGIOES[2];
 
-    const valorHoraTrab = 35;
+    const valorHoraTrab = 38;
+    const EQUIP_VALORES = { cam_principal:80, cam_backup:40, lente_zoom:30, lente_fixa:25, lente_24_70:50, lente_70_200:60, flash:25, tripe:15, gimbal:40, rebatedor:10, iluminacao:40, drone:80 };
+
     const maoDeObra     = parseFloat(form.horasEvento) * valorHoraTrab * nivel.mult * reg.mult;
-    const edicao        = parseFloat(form.horasEdicao) * 25 * nivel.mult;
+    const edicao        = parseFloat(form.horasEdicao) * 28 * nivel.mult;
     const deslocamento  = parseFloat(form.kmDeslocamento) * parseFloat(form.valorKm) * 2;
-    const equipamento   = parseFloat(form.custoEquip) || 0;
+    const equipSelec    = (form.equipamentos || []).reduce((sum, id) => sum + (EQUIP_VALORES[id] || 0), 0);
+    const equipamento   = (parseFloat(form.custoEquip) || 0) + equipSelec;
     const subtotal      = maoDeObra + edicao + deslocamento + equipamento;
     const margemValor   = subtotal * (parseFloat(form.margem) / 100);
     const total         = subtotal + margemValor;
@@ -121,6 +125,41 @@ export default function Calculadora() {
         </div>
 
         <div style={cardStyle}>
+          <h3 style={{ color:OR, fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, marginBottom:16 }}>Equipamentos Utilizados</h3>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(160px,1fr))', gap:8 }}>
+            {[
+              { id:'cam_principal',  label:'Camera principal',     valor:80 },
+              { id:'cam_backup',     label:'Camera backup',        valor:40 },
+              { id:'lente_zoom',     label:'Lente zoom',           valor:30 },
+              { id:'lente_fixa',     label:'Lente fixa 50mm',      valor:25 },
+              { id:'lente_24_70',    label:'Lente 24-70',          valor:50 },
+              { id:'lente_70_200',   label:'Lente 70-200',         valor:60 },
+              { id:'flash',          label:'Flash dedicado',       valor:25 },
+              { id:'tripe',          label:'Tripe profissional',   valor:15 },
+              { id:'gimbal',         label:'Gimbal/estabilizador', valor:40 },
+              { id:'rebatedor',      label:'Rebatedor/difusor',    valor:10 },
+              { id:'iluminacao',     label:'Iluminacao continua',  valor:40 },
+              { id:'drone',          label:'Drone',                valor:80 },
+            ].map(eq => {
+              const ativo = (form.equipamentos || []).includes(eq.id);
+              return (
+                <button key={eq.id} type="button"
+                  onClick={() => {
+                    const lista = form.equipamentos || [];
+                    const novo  = ativo ? lista.filter(x => x !== eq.id) : [...lista, eq.id];
+                    set('equipamentos', novo);
+                  }}
+                  style={{ padding:'9px 10px', borderRadius:9, border:`1px solid ${ativo ? OR+'66' : 'rgba(255,255,255,.07)'}`, background: ativo ? OR+'18' : 'transparent', color: ativo ? OR : '#666', fontSize:12, fontWeight:600, cursor:'pointer', fontFamily:'inherit', textAlign:'left', display:'flex', alignItems:'center', justifyContent:'space-between', gap:6 }}>
+                  <span>{eq.label}</span>
+                  <span style={{ fontSize:10, opacity:.7 }}>R${eq.valor}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ color:'#555', fontSize:11, marginTop:10 }}>Selecione os equipamentos que vai usar — o valor sera somado ao calculo</div>
+        </div>
+
+        <div style={cardStyle}>
           <h3 style={{ color:OR, fontSize:12, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, marginBottom:16 }}>Detalhes do Servico</h3>
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
             <div>
@@ -140,9 +179,9 @@ export default function Calculadora() {
               <input type="number" min="0" step="0.1" value={form.valorKm} onChange={e => set('valorKm', e.target.value)} style={inpStyle}/>
             </div>
             <div>
-              <label style={labelStyle}>Custo equip./extras (R$)</label>
+              <label style={labelStyle}>Custo extras (R$)</label>
               <input type="number" min="0" value={form.custoEquip} onChange={e => set('custoEquip', e.target.value)} style={inpStyle}/>
-              <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Cartao, assistente, props...</div>
+              <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Assistente, props, deslocamento extra...</div>
             </div>
             <div>
               <label style={labelStyle}>Margem de lucro (%)</label>
