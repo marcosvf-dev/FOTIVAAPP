@@ -73,3 +73,27 @@ eventSchema.index({ userId: 1, createdAt: -1 });
 
 module.exports.Client = mongoose.model('Client', clientSchema);
 module.exports.Event  = mongoose.model('Event',  eventSchema);
+
+const equipmentSchema = new mongoose.Schema({
+  userId:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+  name:       { type: String, required: true },
+  buyValue:   { type: Number, required: true },
+  usageMonths:{ type: Number, required: true, min: 1 },
+  category:   { type: String, enum: ['camera','lente','iluminacao','audio','acessorio','outro'], default: 'outro' },
+  notes:      { type: String, default: '' },
+}, { timestamps: true });
+
+equipmentSchema.index({ userId: 1, name: 1 });
+
+module.exports.Equipment = mongoose.model('Equipment', equipmentSchema);
+
+const userSettingsSchema = new mongoose.Schema({
+  userId:      { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, unique: true },
+  hourlyRate:  { type: Number, default: 38 },     // R$/h cobertura
+  editingRate: { type: Number, default: 28 },     // R$/h edicao
+  kmRate:      { type: Number, default: 1.5 },    // R$/km
+  monthlyEvents:{ type: Number, default: 4 },     // eventos/mes media
+  defaultMargin:{ type: Number, default: 40 },    // margem %
+}, { timestamps: true });
+
+module.exports.UserSettings = mongoose.model('UserSettings', userSettingsSchema);
