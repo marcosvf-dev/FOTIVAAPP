@@ -39,6 +39,13 @@
           }
         }
       });
+      // Vincula o dispositivo ao userId do Fotiva
+      var userId = localStorage.getItem('onesignal_user_id');
+      if (userId) {
+        OneSignal.login(userId).catch(function(e) {
+          console.log('OneSignal login error:', e);
+        });
+      }
     });
   </script>
 </head>
