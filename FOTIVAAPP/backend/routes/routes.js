@@ -4,7 +4,7 @@ const mongoose = require('mongoose');
 // ============ CLIENTS ============
 const clientRouter = require('express').Router();
 const { auth, requireActive, checkClientLimit } = require('../middleware/auth');
-const { Client, Event } = require('../models/models');
+const { Client, Event, Equipment, UserSettings } = require('../models/models');
 
 // Normaliza string removendo acentos — busca "joao" encontra "João"
 function normalizar(str) {
@@ -404,3 +404,73 @@ expenseRouter.get('/resumo', async (req, res) => {
 
 module.exports.expenseRouter = expenseRouter;
 module.exports.Expense = Expense;
+
+// ═══ EQUIPAMENTOS ═══════════════════════════════════════════════════
+const equipmentRouter = express.Router();
+
+equipmentRouter.get('/', async (req, res) => {
+  const items = await Equipment.find({ userId: req.user._id }).sort({ createdAt: -1 });
+  res.json(items);
+});
+
+equipmentRouter.post('/', async (req, res) => {
+  const { name, buyValue, usageMonths, category, notes } = req.body;
+  if (!name || !buyValue || !usageMonths)
+    return res.status(400).json({ error: 'Nome, valor e tempo de uso obrigatórios' });
+  const item = await Equipment.create({
+    userId: req.user._id,
+    name: String(name).trim().slice(0, 100),
+    buyValue: parseFloat(buyValue),
+    usageMonths: parseInt(usageMonths),
+    category: category || 'outro',
+    notes: notes || '',
+  });
+  res.status(201).json(item);
+});
+
+equipmentRouter.put('/:id', async (req, res) => {
+  const { name, buyValue, usageMonths, category, notes } = req.body;
+  const item = await Equipment.findOneAndUpdate(
+    { _id: req.params.id, userId: req.user._id },
+    { $set: { name, buyValue: parseFloat(buyValue), usageMonths: parseInt(usageMonths), category, notes } },
+    { new: true }
+  );
+  if (!item) return res.status(404).json({ error: 'Equipamento não encontrado' });
+  res.json(item);
+});
+
+equipmentRouter.delete('/:id', async (req, res) => {
+  const item = await Equipment.findOneAndDelete({ _id: req.params.id, userId: req.user._id });
+  if (!item) return res.status(404).json({ error: 'Equipamento não encontrado' });
+  res.json({ ok: true });
+});
+
+// ═══ CONFIGURAÇÕES DA CALCULADORA ═══════════════════════════════════
+const settingsRouter = express.Router();
+
+settingsRouter.get('/calculator', async (req, res) => {
+  let settings = await UserSettings.findOne({ userId: req.user._id });
+  if (!settings) {
+    settings = await UserSettings.create({ userId: req.user._id });
+  }
+  res.json(settings);
+});
+
+settingsRouter.put('/calculator', async (req, res) => {
+  const { hourlyRate, editingRate, kmRate, monthlyEvents, defaultMargin } = req.body;
+  const update = {};
+  if (hourlyRate    !== undefined) update.hourlyRate    = parseFloat(hourlyRate);
+  if (editingRate   !== undefined) update.editingRate   = parseFloat(editingRate);
+  if (kmRate        !== undefined) update.kmRate        = parseFloat(kmRate);
+  if (monthlyEvents !== undefined) update.monthlyEvents = parseInt(monthlyEvents);
+  if (defaultMargin !== undefined) update.defaultMargin = parseFloat(defaultMargin);
+  const settings = await UserSettings.findOneAndUpdate(
+    { userId: req.user._id },
+    { $set: update },
+    { new: true, upsert: true }
+  );
+  res.json(settings);
+});
+
+module.exports.equipmentRouter = equipmentRouter;
+module.exports.settingsRouter  = settingsRouter;
