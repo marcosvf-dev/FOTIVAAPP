@@ -31,22 +31,22 @@ function gerarMensagem({ ev, user }) {
   const hora  = dataObj && !isNaN(dataObj) ? dataObj.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) : '';
   const saldo = Math.max(0,(ev.totalValue||0)-(ev.amountPaid||0));
   const statusMsgs = {
-    orcamento:`Segue o orçamento para o seu *${ev.eventType}*. Fico à disposição!`,
-    contrato_enviado:`Enviei o contrato do seu *${ev.eventType}*. Por favor revise e retorne.`,
-    sinal_recebido:`Confirmei o recebimento do sinal! Seu *${ev.eventType}* está reservado. 🎉`,
-    confirmado:`Confirmo nosso *${ev.eventType}*! Estou animado(a) para este dia. 📸`,
-    realizado:`Foi uma honra fotografar seu *${ev.eventType}*! As fotos estão sendo editadas. 💛`,
-    fotos_entregues:`Suas fotos do *${ev.eventType}* foram entregues! 🖼`,
-    concluido:`Obrigado(a) pela confiança no *${ev.eventType}*! 🏆`,
-    cancelado:`Referente ao *${ev.eventType}* que estava agendado.`,
+    orcamento:       `Segue o orçamento para o seu ${ev.eventType} 📋\n\nFico à disposição para tirar qualquer dúvida!`,
+    contrato_enviado:`Olá! Acabei de enviar o contrato do seu ${ev.eventType} 📄\n\nPor favor, revise com calma e me retorne quando puder.`,
+    sinal_recebido:  `Recebi o sinal! 💰✨\n\nSeu ${ev.eventType} está oficialmente reservado. Obrigado pela confiança!`,
+    confirmado:      `Confirmo nosso ${ev.eventType}! 📸✨\n\nEstou muito animado(a) para este dia especial!`,
+    realizado:       `Que dia incrível! 💛\n\nFoi uma honra fotografar seu ${ev.eventType}. As fotos já estão sendo editadas com todo carinho.`,
+    fotos_entregues: `Suas fotos do ${ev.eventType} foram entregues! 🖼️📸\n\nEspero que ame o resultado tanto quanto eu amei capturar esses momentos.`,
+    concluido:       `Obrigado(a) pela confiança no seu ${ev.eventType}! 🏆\n\nFoi um prazer trabalhar com você. Conte comigo sempre!`,
+    cancelado:       `Sobre o ${ev.eventType} que estava agendado, vamos conversar?`,
   };
-  let txt = `Olá *${ev.clientName}*! 😊\n\n${statusMsgs[ev.status]||''}\n\n`;
-  if (data) txt += `📅 *Data:* ${data}${hora?` às ${hora}`:''}\n`;
-  if (ev.location) txt += `📍 *Local:* ${ev.location}\n`;
+  let txt = `Olá ${ev.clientName}! 😊\n\n${statusMsgs[ev.status]||''}\n\n`;
+  if (data) txt += `📅 Data: ${data}${hora?` às ${hora}`:''}\n`;
+  if (ev.location) txt += `📍 Local: ${ev.location}\n`;
   if (ev.totalValue > 0) {
-    txt += `\n💰 *Financeiro:*\n• Total: *R$${ev.totalValue.toLocaleString('pt-BR',{minimumFractionDigits:2})}*\n`;
-    if (ev.amountPaid > 0) txt += `• Entrada: *R$${ev.amountPaid.toLocaleString('pt-BR',{minimumFractionDigits:2})}*\n`;
-    if (saldo > 0) txt += `• Saldo: *R$${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}*\n`;
+    txt += `\n💰 Financeiro\n• Total: R$${ev.totalValue.toLocaleString('pt-BR',{minimumFractionDigits:2})}\n`;
+    if (ev.amountPaid > 0) txt += `• Entrada: R$${ev.amountPaid.toLocaleString('pt-BR',{minimumFractionDigits:2})}\n`;
+    if (saldo > 0) txt += `• Saldo: R$${saldo.toLocaleString('pt-BR',{minimumFractionDigits:2})}\n`;
   }
   txt += `\nQualquer dúvida estou à disposição! 🙂\n_${user?.name||''}${user?.studioName?` — ${user.studioName}`:''}_  📸`;
   return txt;
@@ -326,28 +326,31 @@ export default function Eventos() {
                     <div style={{ height:'100%', width:`${(s.step/7)*100}%`, background:`linear-gradient(90deg,#E87722,${s.color})`, transition:'width .4s ease' }}/>
                   </div>
                 )}
-                <div style={{ padding:'14px 16px', cursor:'pointer' }} onClick={() => !ev.archived && navigate(`/eventos/editar/${ev._id}`)}>
+                <div style={{ padding:'10px 14px', cursor:'pointer' }} onClick={() => !ev.archived && navigate(`/eventos/editar/${ev._id}`)}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
-                    <div style={{ width:44, height:44, background: ev.archived ? 'rgba(255,255,255,.04)' : 'rgba(232,119,34,0.1)', border:`1px solid ${ev.archived ? 'rgba(255,255,255,.08)' : 'rgba(232,119,34,0.2)'}`, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <div style={{ width:38, height:38, background: ev.archived ? 'rgba(255,255,255,.04)' : 'rgba(232,119,34,0.1)', border:`1px solid ${ev.archived ? 'rgba(255,255,255,.08)' : 'rgba(232,119,34,0.2)'}`, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       {ev.archived ? (
                         <Archive size={18} color="#555"/>
                       ) : date ? (
                         <>
-                          <span style={{ color:'#E87722', fontSize:15, fontWeight:800, lineHeight:1 }}>{date.getDate()}</span>
-                          <span style={{ color:'#E87722', fontSize:9, fontWeight:600, textTransform:'uppercase' }}>{date.toLocaleString('pt-BR',{month:'short'})}</span>
+                          <span style={{ color:'#E87722', fontSize:13, fontWeight:800, lineHeight:1 }}>{date.getDate()}</span>
+                          <span style={{ color:'#E87722', fontSize:8, fontWeight:600, textTransform:'uppercase' }}>{date.toLocaleString('pt-BR',{month:'short'})}</span>
                         </>
                       ) : <Calendar size={18} color="#E87722"/>}
                     </div>
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:3, flexWrap:'wrap' }}>
-                        <span style={{ color: ev.archived ? '#666' : '#fff', fontWeight:700, fontSize:15 }}>{ev.eventType}</span>
+                        <span style={{ color: ev.archived ? '#666' : '#fff', fontWeight:700, fontSize:14 }}>{ev.eventType}</span>
                         {ev.archived ? (
                           <span style={{ background:'rgba(168,85,247,.1)', color:'#A855F7', fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, border:'1px solid rgba(168,85,247,.2)' }}>📁 Arquivado</span>
                         ) : (
                           <span style={{ background:s.bg, color:s.color, fontSize:10, fontWeight:700, padding:'2px 8px', borderRadius:20, border:`1px solid ${s.color}33`, whiteSpace:'nowrap' }}>{s.icon} {s.label}</span>
                         )}
                       </div>
-                      <div style={{ color:'#888', fontSize:13, marginBottom:6 }}>{ev.clientName}</div>
+                      <div style={{ color:'#888', fontSize:12, marginBottom:5, display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+                        <span>{ev.clientName}</span>
+                        {date && <span style={{ color:'#E87722', fontSize:11, fontWeight:600, background:'rgba(232,119,34,.08)', padding:'1px 7px', borderRadius:10 }}>🕐 {date.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}</span>}
+                      </div>
                       <div style={{ display:'flex', gap:12, flexWrap:'wrap' }}>
                         {ev.location && (
                           <div style={{ display:'flex', alignItems:'center', gap:4 }}>
@@ -395,10 +398,10 @@ export default function Eventos() {
                   </div>
 
                   {!ev.archived && (
-                    <div style={{ marginTop:10, display:'flex', gap:7, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
+                    <div style={{ marginTop:8, display:'flex', gap:6, flexWrap:'wrap' }} onClick={e => e.stopPropagation()}>
                       {next && (
                         <button onClick={e => advanceStatus(e, ev)} disabled={statusLoading[ev._id]}
-                          style={{ flex:1, padding:'8px 12px', borderRadius:9, background:`linear-gradient(135deg,${next.color}22,${next.color}11)`, border:`1px solid ${next.color}44`, color:next.color, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, opacity:statusLoading[ev._id]?.6:1, fontFamily:'inherit', minWidth:140 }}>
+                          style={{ flex:1, padding:'6px 10px', borderRadius:8, background:`linear-gradient(135deg,${next.color}22,${next.color}11)`, border:`1px solid ${next.color}44`, color:next.color, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6, opacity:statusLoading[ev._id]?.6:1, fontFamily:'inherit', minWidth:140 }}>
                           {statusLoading[ev._id] ? '...' : `${next.icon} → ${next.label}`}
                         </button>
                       )}
