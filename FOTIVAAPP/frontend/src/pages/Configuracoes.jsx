@@ -14,7 +14,6 @@ export default function Configuracoes() {
   const [notifStatus,  setNotifStatus]  = useState(typeof Notification !== 'undefined' ? Notification.permission : 'default');
   const [notifLoading, setNotifLoading] = useState(false);
 
-  // LGPD states
   const [lgpdStatus,  setLgpdStatus]  = useState(null);
   const [lgpdLoading, setLgpdLoading] = useState(false);
   const [lgpdMsg,     setLgpdMsg]     = useState('');
@@ -51,7 +50,6 @@ export default function Configuracoes() {
     }
   }, []);
 
-  // Carrega status LGPD quando entra na aba
   useEffect(() => {
     if (tab === 'privacidade') {
       api.get('/api/lgpd/status')
@@ -59,6 +57,13 @@ export default function Configuracoes() {
         .catch(() => {});
     }
   }, [tab]);
+
+  function urlBase64ToUint8Array(b) {
+    const pad    = '='.repeat((4 - b.length % 4) % 4);
+    const base64 = (b + pad).replace(/-/g, '+').replace(/_/g, '/');
+    const raw    = window.atob(base64);
+    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+  }
 
   async function ativarNotificacoes() {
     setNotifLoading(true);
@@ -69,7 +74,6 @@ export default function Configuracoes() {
         return;
       }
 
-      // Pede permissao ao usuario
       const perm = await Notification.requestPermission();
       setNotifStatus(perm);
 
@@ -79,32 +83,26 @@ export default function Configuracoes() {
         return;
       }
 
-      // Registra service worker e subscreve
       if ('serviceWorker' in navigator) {
         try {
           const reg = await navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' });
           await reg.update();
           await navigator.serviceWorker.ready;
 
-          // Busca chave VAPID do backend
           const { data: vapidData } = await api.get('/api/push/vapid-key');
           if (vapidData?.key) {
-            // Remove subscription antiga se existir
             const existing = await reg.pushManager.getSubscription();
             if (existing) await existing.unsubscribe();
 
-            // Cria nova subscription
             const sub = await reg.pushManager.subscribe({
               userVisibleOnly: true,
               applicationServerKey: urlBase64ToUint8Array(vapidData.key),
             });
 
-            // Salva no backend
             await api.post('/api/push/subscribe', { subscription: sub.toJSON() });
           }
         } catch (swErr) {
           console.log('SW/Push error:', swErr.message);
-          // Mesmo com erro no SW, marca como ativo se a permissao foi concedida
         }
       }
 
@@ -117,6 +115,8 @@ export default function Configuracoes() {
       toast.error('Erro ao ativar: ' + (e.message || 'Tente novamente'));
     }
     setNotifLoading(false);
+  }
+
   async function desativarNotificacoes() {
     setNotifLoading(true);
     try {
@@ -130,7 +130,7 @@ export default function Configuracoes() {
       localStorage.removeItem('push_active');
       localStorage.setItem('push_permission', 'default');
       toast.success('Notificações desativadas!');
-    } catch { toast.error('Erro ao desativar'); }
+    } catch(e) { toast.error('Erro ao desativar'); }
     finally { setNotifLoading(false); }
   }
 
@@ -139,7 +139,7 @@ export default function Configuracoes() {
     try {
       await api.post('/api/push/test');
       toast.success('🔔 Notificação enviada pelo servidor!');
-    } catch {
+    } catch(e) {
       try {
         if ('serviceWorker' in navigator) {
           const reg = await navigator.serviceWorker.ready;
@@ -149,16 +149,9 @@ export default function Configuracoes() {
           new Notification('🎉 Fotiva — Teste', { body: 'Notificações funcionando!', icon: '/favicon.ico' });
           toast.success('🔔 Notificação local enviada!');
         }
-      } catch { toast.error('Erro ao testar.'); }
+      } catch(e2) { toast.error('Erro ao testar.'); }
     }
     setNotifLoading(false);
-  }
-
-  function urlBase64ToUint8Array(b) {
-    const pad    = '='.repeat((4 - b.length % 4) % 4);
-    const base64 = (b + pad).replace(/-/g, '+').replace(/_/g, '/');
-    const raw    = window.atob(base64);
-    return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
   }
 
   const handleImage = (e) => {
@@ -188,7 +181,7 @@ export default function Configuracoes() {
       if (form.profileImage) localStorage.setItem('profile_image', form.profileImage);
       if (form.studioLogo)   localStorage.setItem('studio_logo',   form.studioLogo);
       toast.success('Perfil atualizado!');
-    } catch { toast.error('Erro ao salvar perfil'); }
+    } catch(e) { toast.error('Erro ao salvar perfil'); }
     finally { setLoading(false); }
   };
 
@@ -199,7 +192,6 @@ export default function Configuracoes() {
     } catch (e) { toast.error(e.response?.data?.error || 'Configure o Portal no Stripe Dashboard'); }
   };
 
-  // LGPD functions
   const exportarDados = async () => {
     setLgpdLoading(true);
     try {
@@ -210,7 +202,7 @@ export default function Configuracoes() {
       a.download = 'meus-dados-fotiva.json';
       a.click();
       setLgpdMsg('✅ Dados exportados com sucesso!');
-    } catch { setLgpdMsg('❌ Erro ao exportar dados.'); }
+    } catch(e) { setLgpdMsg('❌ Erro ao exportar dados.'); }
     setLgpdLoading(false);
   };
 
@@ -221,7 +213,7 @@ export default function Configuracoes() {
       const { data } = await api.post('/api/lgpd/solicitar-exclusao', { motivo: 'Solicitado pelo usuário' });
       setLgpdMsg(data.info || data.message);
       setLgpdStatus(s => ({ ...s, exclusaoPendente: true }));
-    } catch { setLgpdMsg('❌ Erro ao solicitar exclusão.'); }
+    } catch(e) { setLgpdMsg('❌ Erro ao solicitar exclusão.'); }
     setLgpdLoading(false);
   };
 
@@ -231,7 +223,7 @@ export default function Configuracoes() {
       await api.post('/api/lgpd/cancelar-exclusao');
       setLgpdMsg('✅ Solicitação cancelada.');
       setLgpdStatus(s => ({ ...s, exclusaoPendente: false }));
-    } catch { setLgpdMsg('❌ Erro ao cancelar.'); }
+    } catch(e) { setLgpdMsg('❌ Erro ao cancelar.'); }
     setLgpdLoading(false);
   };
 
@@ -261,7 +253,6 @@ export default function Configuracoes() {
           <p style={{ color:'#555', fontSize:13, marginTop:4 }}>Gerencie sua conta e preferências</p>
         </div>
 
-        {/* Tabs */}
         <div style={{ display:'flex', gap:4, marginBottom:22, background:'#0D0D0D', border:'1px solid rgba(255,255,255,0.06)', borderRadius:10, padding:4 }}>
           {TABS.map(([id, label]) => (
             <button key={id} onClick={() => setTab(id)}
@@ -274,7 +265,6 @@ export default function Configuracoes() {
           ))}
         </div>
 
-        {/* ── PERFIL ─────────────────────────────── */}
         {tab === 'perfil' && (
           <form onSubmit={saveProfile}>
             <div style={cardStyle}>
@@ -319,7 +309,6 @@ export default function Configuracoes() {
               </div>
             </div>
 
-            {/* Logo do Estúdio */}
             <div style={{ marginTop:16 }}>
               <label style={{ display:'block', fontSize:11, fontWeight:700, color:'#555', textTransform:'uppercase', letterSpacing:.5, marginBottom:8 }}>Logo do Estúdio (para contratos)</label>
               <div style={{ display:'flex', alignItems:'center', gap:14 }}>
@@ -350,7 +339,6 @@ export default function Configuracoes() {
           </form>
         )}
 
-        {/* ── NOTIFICAÇÕES ───────────────────────── */}
         {tab === 'notificacoes' && (
           <div style={cardStyle}>
             <div style={{ display:'flex', alignItems:'center', gap:14, marginBottom:18 }}>
@@ -401,7 +389,6 @@ export default function Configuracoes() {
           </div>
         )}
 
-        {/* ── CONTA ──────────────────────────────── */}
         {tab === 'conta' && (
           <div>
             <div style={cardStyle}>
@@ -466,7 +453,6 @@ export default function Configuracoes() {
           </div>
         )}
 
-        {/* ── PRIVACIDADE (LGPD) ─────────────────── */}
         {tab === 'privacidade' && (
           <div>
             <h3 style={{ color:'#E87722', marginBottom:20, fontSize:16 }}>🔒 Seus Direitos e Privacidade (LGPD)</h3>
