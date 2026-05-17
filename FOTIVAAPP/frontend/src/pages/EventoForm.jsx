@@ -139,7 +139,7 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
     const payload = {
       ...form,
       eventDate: form.eventDate
-        ? `${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00`
+        ? new Date(`${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00`).toISOString()
         : null,
       totalValue:   parseFloat(form.totalValue)   || 0,
       amountPaid:   parseFloat(form.amountPaid)   || 0,
@@ -163,7 +163,7 @@ function EventoForm({ initialData, onSubmit, loading, title }) {
   const eventoParaWhats = {
     clientName: form.clientName || clientes.find(c => c._id === form.clientId)?.name || '',
     eventType:  form.eventType  || '',
-    eventDate:  form.eventDate ? `${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00` : null,
+    eventDate:  form.eventDate ? new Date(`${form.eventDate}T${(form.eventTime || '09:00').slice(0,5)}:00`).toISOString() : null,
     location:   form.location   || '',
     totalValue: parseFloat(form.totalValue)  || 0,
     amountPaid: parseFloat(form.amountPaid)  || 0,
@@ -390,8 +390,8 @@ export function EditarEvento() {
       setInitial({
         ...ev,
         clientId:     ev.clientId     || '',
-        eventDate:    d ? d.toISOString().split('T')[0] : '',
-        eventTime:    d ? d.toTimeString().slice(0,5)   : '09:00',
+        eventDate:    d ? `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` : '',
+        eventTime:    d ? `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` : '09:00',
         totalValue:   ev.totalValue?.toString()   || '',
         amountPaid:   ev.amountPaid?.toString()   || '0',
         installments: ev.installments?.toString() || '1',
