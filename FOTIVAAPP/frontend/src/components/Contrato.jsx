@@ -292,7 +292,7 @@ ${assinaturaHtml}
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.92)', zIndex:2000, overflowY:'auto', padding:20 }}>
-      <div style={{ maxWidth:900, margin:'0 auto' }}>
+      <div style={{ maxWidth: '100%', margin:'0 auto' }}>
 
         {/* Header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'16px 0', marginBottom:16, flexWrap:'wrap', gap:10 }}>
@@ -378,7 +378,7 @@ ${assinaturaHtml}
           <div style={{ background:'#fff', borderRadius:16, padding:'24px 20px', color:'#1a1a1a', fontFamily:'Georgia,serif', lineHeight:1.8, overflowX:'auto' }}>
             <div style={{ textAlign:'center', marginBottom:28 }}>
               {(fotografo?.studioLogo || localStorage.getItem('studio_logo')) ? (
-                <img src={fotografo?.studioLogo || localStorage.getItem('studio_logo')} alt="Logo" style={{ height:60, objectFit:'contain', marginBottom:16, maxWidth:200 }}/>
+                <img src={fotografo?.studioLogo || localStorage.getItem('studio_logo')} alt="Logo" style={{ height:60, objectFit:'contain', marginBottom:16, maxWidth: '100%' }}/>
               ) : (
                 <div style={{ fontSize:20, fontWeight:800, color:'#1a1a1a', marginBottom:16, letterSpacing:1 }}>
                   {fotografo?.studioName || fotografo?.name || 'Fotiva'}
@@ -393,7 +393,7 @@ ${assinaturaHtml}
             </pre>
             {assinado && canvasRef.current && (
               <div style={{ marginTop:32, textAlign:'center', borderTop:'1px solid #eee', paddingTop:20 }}>
-                <img src={canvasRef.current.toDataURL()} alt="Assinatura" style={{ maxWidth:280, borderTop:'1px solid #333', paddingTop:8 }}/>
+                <img src={canvasRef.current.toDataURL()} alt="Assinatura" style={{ maxWidth: '100%', borderTop:'1px solid #333', paddingTop:8 }}/>
                 <p style={{ fontSize:12, color:'#888', marginTop:8 }}>Assinado digitalmente em {new Date().toLocaleDateString('pt-BR')}</p>
               </div>
             )}
