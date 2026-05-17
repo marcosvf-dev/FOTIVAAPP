@@ -72,6 +72,39 @@ clientRouter.post('/', checkClientLimit, async (req, res) => {
   res.status(201).json(client);
 });
 
+// GET /api/clients/aniversariantes — clientes que fazem aniversario este mes
+clientRouter.get('/aniversariantes', async (req, res) => {
+  const mesAtual = new Date().getMonth() + 1; // 1-12
+  const hoje     = new Date(); hoje.setHours(0,0,0,0);
+  const fimMes   = new Date(hoje.getFullYear(), mesAtual, 0); // ultimo dia do mes
+
+  const clientes = await Client.find({
+    userId:    req.user._id,
+    birthdate: { $ne: null },
+  }).select('name phone email birthdate');
+
+  // Filtra clientes que fazem aniversario este mes
+  const aniversariantes = clientes
+    .filter(c => {
+      if (!c.birthdate) return false;
+      const nasc = new Date(c.birthdate);
+      return nasc.getMonth() + 1 === mesAtual;
+    })
+    .map(c => {
+      const nasc = new Date(c.birthdate);
+      const aniv = new Date(hoje.getFullYear(), nasc.getMonth(), nasc.getDate());
+      return { ...c.toObject(), _daysUntil: Math.ceil((aniv - hoje) / 86400000) };
+    })
+    .sort((a, b) => {
+      // Hoje primeiro, depois por proximidade
+      if (a._daysUntil === 0) return -1;
+      if (b._daysUntil === 0) return 1;
+      return a._daysUntil - b._daysUntil;
+    });
+
+  res.json(aniversariantes);
+});
+
 clientRouter.get('/:id', async (req, res) => {
   const c = await Client.findOne({ _id: req.params.id, userId: req.user._id });
   if (!c) return res.status(404).json({ error: 'Cliente não encontrado' });
