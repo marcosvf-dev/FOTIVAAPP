@@ -1,28 +1,31 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'sonner';
+import { Toaster } from 'react-hot-toast';
+
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Login             from './pages/Login';
-import Register          from './pages/Register';
-import ResetPassword     from './pages/ResetPassword';
-import Dashboard         from './pages/Dashboard';
-import Eventos           from './pages/Eventos';
-import NovoEvento        from './pages/NovoEvento';
-import EditarEvento      from './pages/EditarEvento';
-import Clientes          from './pages/Clientes';
-import NovoCliente       from './pages/NovoCliente';
-import Pagamentos        from './pages/Pagamentos';
-import Agenda            from './pages/Agenda';
-import Configuracoes     from './pages/Configuracoes';
-import Assinatura        from './pages/Assinatura';
-import PagamentoRetorno  from './pages/PagamentoRetorno';
-import Admin             from './pages/Admin';
-import Galerias          from './pages/Galerias';
-import Parceiros         from './pages/Parceiros';
-import GaleriaCliente    from './pages/GaleriaCliente';
+
+import Login              from './pages/Login';
+import Register           from './pages/Register';
+import ResetPassword      from './pages/ResetPassword';
+import Assinatura         from './pages/Assinatura';
+import Dashboard          from './pages/Dashboard';
+import Agenda             from './pages/Agenda';
+import Eventos            from './pages/Eventos';
+import EventoForm         from './pages/EventoForm';
+import EditarEvento       from './pages/EditarEvento';
+import NovoEvento         from './pages/NovoEvento';
+import Clientes           from './pages/Clientes';
+import NovoCliente        from './pages/NovoCliente';
+import Pagamentos         from './pages/Pagamentos';
+import PagamentoRetorno   from './pages/PagamentoRetorno';
+import Configuracoes      from './pages/Configuracoes';
+import Admin              from './pages/Admin';
+import Galerias           from './pages/Galerias';
+import Parceiros          from './pages/Parceiros';
+import GaleriaCliente     from './pages/GaleriaCliente';
 import TermosPrivacidade  from './pages/TermosPrivacidade';
-import Calculadora       from './pages/Calculadora';
-import Equipamentos     from './pages/Equipamentos';
+import Calculadora        from './pages/Calculadora';
+import Equipamentos       from './pages/Equipamentos';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -47,22 +50,38 @@ class ErrorBoundary extends React.Component {
           gap:20, padding:24, fontFamily:'Inter, sans-serif'
         }}>
           <div style={{ fontSize:48 }}>⚠️</div>
-          <div style={{ color:'#fff', fontSize:20, fontWeight:700, textAlign:'center' }}>Algo deu errado</div>
+          <div style={{ color:'#fff', fontSize:20, fontWeight:700, textAlign:'center' }}>
+            Algo deu errado
+          </div>
           <div style={{ color:'#666', fontSize:14, textAlign:'center', maxWidth:400 }}>
             Ocorreu um erro inesperado. Tente recarregar a página.
           </div>
           <div style={{ display:'flex', gap:12 }}>
             <button onClick={() => window.location.reload()}
-              style={{ padding:'10px 24px', borderRadius:10, background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              style={{
+                padding:'10px 24px', borderRadius:10,
+                background:'linear-gradient(135deg,#E87722,#C85A00)',
+                color:'#fff', border:'none', fontSize:14, fontWeight:700,
+                cursor:'pointer', fontFamily:'inherit'
+              }}>
               🔄 Recarregar
             </button>
             <button onClick={() => { this.setState({ hasError:false }); window.location.href='/dashboard'; }}
-              style={{ padding:'10px 24px', borderRadius:10, background:'rgba(255,255,255,.06)', color:'#aaa', border:'1px solid rgba(255,255,255,.1)', fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+              style={{
+                padding:'10px 24px', borderRadius:10,
+                background:'rgba(255,255,255,.06)', color:'#aaa',
+                border:'1px solid rgba(255,255,255,.1)',
+                fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit'
+              }}>
               🏠 Ir para o início
             </button>
           </div>
           {process.env.NODE_ENV === 'development' && this.state.error && (
-            <pre style={{ background:'#1a1a1a', color:'#EF4444', padding:16, borderRadius:8, fontSize:11, maxWidth:600, overflow:'auto', maxHeight:200, border:'1px solid #333' }}>
+            <pre style={{
+              background:'#1a1a1a', color:'#EF4444', padding:16, borderRadius:8,
+              fontSize:11, maxWidth:600, overflow:'auto', maxHeight:200,
+              border:'1px solid #333'
+            }}>
               {this.state.error.toString()}
             </pre>
           )}
@@ -76,8 +95,8 @@ class ErrorBoundary extends React.Component {
 function Private({ children, requireSub = true }) {
   const { user, loading } = useAuth();
   if (loading) return (
-    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh', background:'#080808' }}>
-      <div style={{ width:20, height:20, border:'2px solid rgba(255,255,255,.2)', borderTopColor:'#E87722', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>
+    <div style={{ minHeight:'100vh', background:'#080808', display:'flex', alignItems:'center', justifyContent:'center', color:'#666' }}>
+      Carregando...
     </div>
   );
   if (!user) return <Navigate to="/login" replace />;
@@ -93,27 +112,26 @@ function Private({ children, requireSub = true }) {
 export default function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <BrowserRouter>
+      <BrowserRouter>
+        <AuthProvider>
           <Routes>
-            <Route path="/login"              element={<Login />} />
-            <Route path="/cadastro"           element={<Register />} />
-            <Route path="/redefinir-senha"    element={<ResetPassword />} />
-            <Route path="/termos"             element={<TermosPrivacidade />} />
-            <Route path="/galeria/:id"        element={<GaleriaCliente />} />
-            <Route path="/admin"              element={<Admin />} />
-            <Route path="/pagamento/sucesso"  element={<PagamentoRetorno />} />
-            <Route path="/pagamento/falha"    element={<PagamentoRetorno />} />
-            <Route path="/pagamento/pendente" element={<PagamentoRetorno />} />
-            <Route path="/assinatura"         element={<Private requireSub={false}><Assinatura /></Private>} />
             <Route path="/"                   element={<Navigate to="/dashboard" replace />} />
+            <Route path="/login"              element={<Login />} />
+            <Route path="/register"           element={<Register />} />
+            <Route path="/reset-password"     element={<ResetPassword />} />
+            <Route path="/termos"             element={<TermosPrivacidade />} />
+            <Route path="/galeria/:token"     element={<GaleriaCliente />} />
+            <Route path="/pagamento/retorno"  element={<PagamentoRetorno />} />
+            <Route path="/assinatura"         element={<Private requireSub={false}><Assinatura /></Private>} />
+            <Route path="/admin"              element={<Private requireSub={false}><Admin /></Private>} />
             <Route path="/dashboard"          element={<Private><Dashboard /></Private>} />
+            <Route path="/agenda"             element={<Private><Agenda /></Private>} />
             <Route path="/eventos"            element={<Private><Eventos /></Private>} />
             <Route path="/eventos/novo"       element={<Private><NovoEvento /></Private>} />
-            <Route path="/eventos/editar/:id" element={<Private><EditarEvento /></Private>} />
+            <Route path="/eventos/:id"        element={<Private><EditarEvento /></Private>} />
+            <Route path="/evento-form"        element={<Private><EventoForm /></Private>} />
             <Route path="/clientes"           element={<Private><Clientes /></Private>} />
             <Route path="/clientes/novo"      element={<Private><NovoCliente /></Private>} />
-            <Route path="/agenda"             element={<Private><Agenda /></Private>} />
             <Route path="/pagamentos"         element={<Private><Pagamentos /></Private>} />
             <Route path="/configuracoes"      element={<Private><Configuracoes /></Private>} />
             <Route path="/galerias"           element={<Private><Galerias /></Private>} />
@@ -122,9 +140,11 @@ export default function App() {
             <Route path="/equipamentos"       element={<Private><Equipamentos /></Private>} />
             <Route path="*"                   element={<Navigate to="/dashboard" replace />} />
           </Routes>
-          <Toaster position="top-right" toastOptions={{ style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' } }}/>
-        </BrowserRouter>
-      </AuthProvider>
+          <Toaster position="top-right" toastOptions={{
+            style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' }
+          }}/>
+        </AuthProvider>
+      </BrowserRouter>
     </ErrorBoundary>
   );
 }
