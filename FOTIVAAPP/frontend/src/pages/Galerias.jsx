@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../lib/api';
@@ -12,7 +13,49 @@ import {
 const OR = '#E87722';
 const dark = { background:'#0a0a10', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:20 };
 const btnStyle = (extra={}) => ({ display:'inline-flex', alignItems:'center', gap:7, padding:'9px 18px', borderRadius:10, border:'none', fontFamily:'inherit', fontSize:13, fontWeight:700, cursor:'pointer', transition:'all .2s', ...extra });
-const inpStyle = (extra={}) => ({ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit', ...extra });
+const inpStyle = (extra={}) => ({ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit', boxSizing:'border-box', ...extra });
+
+function ModalShell({ onClose, maxWidth = 460, children }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  return createPortal(
+    <div
+      onClick={onClose}
+      style={{
+        position:'fixed',
+        top:0, left:0, right:0, bottom:0,
+        background:'rgba(0,0,0,.85)',
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        zIndex:99999,
+        padding:'16px',
+        overflowY:'auto',
+        WebkitOverflowScrolling:'touch',
+      }}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background:'#0d0d14',
+          border:'1px solid rgba(255,255,255,.1)',
+          borderRadius:20,
+          padding:24,
+          width:'100%',
+          maxWidth,
+          margin:'auto',
+          boxSizing:'border-box',
+          position:'relative',
+        }}>
+        {children}
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 const Toggle = ({ value, onChange, label, sub, color='#22C55E' }) => (
   <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', background:'rgba(255,255,255,.03)', borderRadius:10, padding:'12px 14px', border:'1px solid rgba(255,255,255,.06)' }}>
@@ -199,7 +242,6 @@ Qualquer duvida e so falar! 😊`;
     </Layout>
   );
 
-  // Quando gerenciando uma galeria, renderiza fora do Layout para evitar sobreposição
   if (modal === 'gallery' && current) {
     return (
       <div style={{ minHeight:'100vh', background:'#080808', overflowY:'auto', padding:20, fontFamily:'Inter,sans-serif' }}>
@@ -294,6 +336,7 @@ Qualquer duvida e so falar! 😊`;
               <div style={{ color:'#ccc', fontSize:13, marginTop:2, fontFamily:'monospace', wordBreak:'break-all' }}>{APP_URL}/galeria/{current._id}</div>
             </div>
             <button onClick={() => copyLink(current)} style={btnStyle({ background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', padding:'8px 16px' })}>
+              Copiar
             </button>
           </div>
 
@@ -355,43 +398,39 @@ Qualquer duvida e so falar! 😊`;
             </div>
           )}
         </div>
-        {/* Modal editar credenciais */}
+
         {editModal && (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}
-            onClick={() => setEditModal(false)}>
-            <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:400 }}
-              onClick={e => e.stopPropagation()}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-                <h3 style={{ color:'#fff', fontSize:16, fontWeight:800, margin:0 }}>Editar acesso do cliente</h3>
-                <button onClick={() => setEditModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555', fontSize:20 }}>x</button>
+          <ModalShell onClose={() => setEditModal(false)} maxWidth={400}>
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+              <h3 style={{ color:'#fff', fontSize:16, fontWeight:800, margin:0 }}>Editar acesso do cliente</h3>
+              <button onClick={() => setEditModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555', padding:4, display:'flex' }}><X size={20}/></button>
+            </div>
+            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+              <div>
+                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Email do cliente *</label>
+                <input type="email" value={editForm.clientEmail} onChange={e => setEditForm(f => ({...f, clientEmail: e.target.value}))}
+                  placeholder="email@cliente.com"
+                  style={inpStyle()}/>
               </div>
-              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                <div>
-                  <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Email do cliente *</label>
-                  <input type="email" value={editForm.clientEmail} onChange={e => setEditForm(f => ({...f, clientEmail: e.target.value}))}
-                    placeholder="email@cliente.com"
-                    style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit' }}/>
-                </div>
-                <div>
-                  <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Nova senha (deixe vazio para manter a atual)</label>
-                  <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({...f, password: e.target.value}))}
-                    placeholder="Nova senha..."
-                    style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit' }}/>
-                  <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Se nao preenchida, a senha atual sera mantida</div>
-                </div>
-              </div>
-              <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                <button onClick={() => setEditModal(false)}
-                  style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                  Cancelar
-                </button>
-                <button onClick={saveCredentials}
-                  style={{ flex:2, padding:'11px', borderRadius:10, background:'linear-gradient(135deg,#3B82F6,#2563EB)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                  Salvar credenciais
-                </button>
+              <div>
+                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Nova senha (deixe vazio para manter a atual)</label>
+                <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({...f, password: e.target.value}))}
+                  placeholder="Nova senha..."
+                  style={inpStyle()}/>
+                <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Se nao preenchida, a senha atual sera mantida</div>
               </div>
             </div>
-          </div>
+            <div style={{ display:'flex', gap:10, marginTop:20 }}>
+              <button onClick={() => setEditModal(false)}
+                style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                Cancelar
+              </button>
+              <button onClick={saveCredentials}
+                style={{ flex:2, padding:'11px', borderRadius:10, background:'linear-gradient(135deg,#3B82F6,#2563EB)', color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                Salvar credenciais
+              </button>
+            </div>
+          </ModalShell>
         )}
 
         <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
@@ -402,7 +441,6 @@ Qualquer duvida e so falar! 😊`;
   return (
     <Layout>
       <div style={{ maxWidth:1100, margin:'0 auto' }}>
-        {/* Header */}
         <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:28, flexWrap:'wrap', gap:12 }}>
           <div>
             <h1 style={{ fontSize:22, fontWeight:800, color:'#fff', margin:0 }}>Galerias de Fotos</h1>
@@ -413,7 +451,6 @@ Qualquer duvida e so falar! 😊`;
           </button>
         </div>
 
-        {/* Lista */}
         {!galleries.length ? (
           <div style={{ ...dark, textAlign:'center', padding:'60px 24px' }}>
             <Image size={48} color="#333" style={{ marginBottom:16 }}/>
@@ -479,71 +516,65 @@ Qualquer duvida e so falar! 😊`;
         )}
       </div>
 
-      {/* Modal: Criar galeria */}
       {modal === 'create' && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'20px 16px', overflowY:'auto'}}>
-          <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:460, margin:'auto'}}>
-            <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
-              <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:0 }}>Nova Galeria</h2>
-              <button onClick={() => setModal(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555' }}><X size={20}/></button>
+        <ModalShell onClose={() => setModal(null)} maxWidth={460}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
+            <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:0 }}>Nova Galeria</h2>
+            <button onClick={() => setModal(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555', padding:4, display:'flex' }}><X size={20}/></button>
+          </div>
+          <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Título *</label>
+              <input value={form.title} onChange={e => setForm({...form, title:e.target.value})} placeholder="Ex: Casamento Ana & Pedro" style={inpStyle()}/>
             </div>
-            <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+            <div>
+              <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Descrição</label>
+              <input value={form.description} onChange={e => setForm({...form, description:e.target.value})} placeholder="Opcional" style={inpStyle()}/>
+            </div>
+            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
               <div>
-                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Título *</label>
-                <input value={form.title} onChange={e => setForm({...form, title:e.target.value})} placeholder="Ex: Casamento Ana & Pedro" style={inpStyle()}/>
-              </div>
-              <div>
-                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Descrição</label>
-                <input value={form.description} onChange={e => setForm({...form, description:e.target.value})} placeholder="Opcional" style={inpStyle()}/>
-              </div>
-              <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
-                <div>
-                  <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Nome do Cliente *</label>
-                  <input value={form.clientName} onChange={e => setForm({...form, clientName:e.target.value})} placeholder="Ana Silva" style={inpStyle()}/>
-                </div>
-                <div>
-                  <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Email *</label>
-                  <input type="email" value={form.clientEmail} onChange={e => setForm({...form, clientEmail:e.target.value})} placeholder="ana@email.com" style={inpStyle()}/>
-                </div>
+                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Nome do Cliente *</label>
+                <input value={form.clientName} onChange={e => setForm({...form, clientName:e.target.value})} placeholder="Ana Silva" style={inpStyle()}/>
               </div>
               <div>
-                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Senha de Acesso *</label>
-                <input type="password" value={form.password} onChange={e => setForm({...form, password:e.target.value})} placeholder="Crie uma senha para o cliente" style={inpStyle()}/>
-                <div style={{ color:'#444', fontSize:11, marginTop:5 }}>O cliente usará esta senha para acessar as fotos</div>
+                <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Email *</label>
+                <input type="email" value={form.clientEmail} onChange={e => setForm({...form, clientEmail:e.target.value})} placeholder="ana@email.com" style={inpStyle()}/>
               </div>
+            </div>
+            <div>
+              <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Senha de Acesso *</label>
+              <input type="password" value={form.password} onChange={e => setForm({...form, password:e.target.value})} placeholder="Crie uma senha para o cliente" style={inpStyle()}/>
+              <div style={{ color:'#444', fontSize:11, marginTop:5 }}>O cliente usará esta senha para acessar as fotos</div>
+            </div>
 
-              {/* Opções */}
-              <div style={{ borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:14, display:'flex', flexDirection:'column', gap:10 }}>
-                <div style={{ color:'#666', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Opções</div>
-                <Toggle
-                  value={form.downloadEnabled}
-                  onChange={v => setForm({...form, downloadEnabled:v})}
-                  label="Permitir download"
-                  sub="Cliente poderá baixar as fotos"
-                  color="#3B82F6"
-                />
-                <Toggle
-                  value={form.watermarkEnabled}
-                  onChange={v => setForm({...form, watermarkEnabled:v})}
-                  label="Marca d'água"
-                  sub="Adiciona seu nome/estúdio nas fotos"
-                  color="#A855F7"
-                />
-              </div>
-            </div>
-            <div style={{ display:'flex', gap:10, marginTop:24 }}>
-              <button onClick={() => setModal(null)} style={btnStyle({ flex:1, justifyContent:'center', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888' })}>
-                Cancelar
-              </button>
-              <button onClick={createGallery} style={btnStyle({ flex:1, justifyContent:'center', background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff' })}>
-                <Plus size={15}/> Criar Galeria
-              </button>
+            <div style={{ borderTop:'1px solid rgba(255,255,255,.06)', paddingTop:14, display:'flex', flexDirection:'column', gap:10 }}>
+              <div style={{ color:'#666', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Opções</div>
+              <Toggle
+                value={form.downloadEnabled}
+                onChange={v => setForm({...form, downloadEnabled:v})}
+                label="Permitir download"
+                sub="Cliente poderá baixar as fotos"
+                color="#3B82F6"
+              />
+              <Toggle
+                value={form.watermarkEnabled}
+                onChange={v => setForm({...form, watermarkEnabled:v})}
+                label="Marca d'água"
+                sub="Adiciona seu nome/estúdio nas fotos"
+                color="#A855F7"
+              />
             </div>
           </div>
-        </div>
+          <div style={{ display:'flex', gap:10, marginTop:24 }}>
+            <button onClick={() => setModal(null)} style={btnStyle({ flex:1, justifyContent:'center', background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888' })}>
+              Cancelar
+            </button>
+            <button onClick={createGallery} style={btnStyle({ flex:1, justifyContent:'center', background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff' })}>
+              <Plus size={15}/> Criar Galeria
+            </button>
+          </div>
+        </ModalShell>
       )}
-
-      {/* Modal: Gerenciar galeria */}
 
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </Layout>
