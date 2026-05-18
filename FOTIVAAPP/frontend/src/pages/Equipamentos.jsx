@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Layout from '../components/Layout';
 import api from '../lib/api';
 import { toast } from 'sonner';
@@ -16,7 +17,7 @@ const CATEGORIAS = [
 ];
 
 const cardStyle = { background:'#111', border:'1px solid rgba(255,255,255,.06)', borderRadius:14, padding:18, marginBottom:12 };
-const inpStyle  = { width:'100%', background:'#161616', border:'1px solid rgba(255,255,255,.07)', borderRadius:9, color:'#fff', padding:'9px 12px', fontSize:13, outline:'none', fontFamily:'inherit' };
+const inpStyle  = { width:'100%', background:'#161616', border:'1px solid rgba(255,255,255,.07)', borderRadius:9, color:'#fff', padding:'9px 12px', fontSize:13, outline:'none', fontFamily:'inherit', boxSizing:'border-box' };
 const labelStyle= { color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 };
 
 export default function Equipamentos() {
@@ -36,6 +37,14 @@ export default function Equipamentos() {
       setSettings(r2.data);
     }).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (modal) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => { document.body.style.overflow = prev; };
+    }
+  }, [modal]);
 
   const openNew = () => {
     setEditId(null);
@@ -79,7 +88,6 @@ export default function Equipamentos() {
 
   const fmt = (v) => v.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
 
-  // Calcula valor por uso
   const calcPorUso = (item) => {
     const custoMensal = item.buyValue / item.usageMonths;
     return custoMensal / (settings.monthlyEvents || 4);
@@ -87,6 +95,100 @@ export default function Equipamentos() {
 
   const totalInvestido = items.reduce((sum, i) => sum + i.buyValue, 0);
   const totalPorEvento = items.reduce((sum, i) => sum + calcPorUso(i), 0);
+
+  const Modal = () => createPortal(
+    <div
+      onClick={() => setModal(false)}
+      style={{
+        position:'fixed',
+        top:0, left:0, right:0, bottom:0,
+        background:'rgba(0,0,0,.88)',
+        display:'flex',
+        alignItems:'center',
+        justifyContent:'center',
+        zIndex:99999,
+        padding:'16px',
+        overflowY:'auto',
+        WebkitOverflowScrolling:'touch',
+      }}>
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background:'#0d0d14',
+          border:'1px solid rgba(255,255,255,.1)',
+          borderRadius:18,
+          padding:24,
+          width:'100%',
+          maxWidth:440,
+          margin:'auto',
+          boxSizing:'border-box',
+          position:'relative',
+        }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
+          <h2 style={{ color:'#fff', fontSize:17, fontWeight:800, margin:0 }}>{editId ? 'Editar equipamento' : 'Novo equipamento'}</h2>
+          <button onClick={() => setModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555', padding:4, display:'flex' }}><X size={20}/></button>
+        </div>
+
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          <div>
+            <label style={labelStyle}>Nome do equipamento *</label>
+            <input value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))} placeholder="Ex: Canon R5" style={inpStyle}/>
+          </div>
+          <div>
+            <label style={labelStyle}>Categoria</label>
+            <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
+              {CATEGORIAS.map(c => (
+                <button key={c.id} type="button" onClick={() => setForm(f => ({...f, category:c.id}))}
+                  style={{ padding:'8px', borderRadius:8, border:`1px solid ${form.category===c.id ? OR+'66' : 'rgba(255,255,255,.07)'}`, background: form.category===c.id ? OR+'18' : 'transparent', color: form.category===c.id ? OR : '#666', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+                  {c.icon} {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+            <div>
+              <label style={labelStyle}>Valor de compra (R$) *</label>
+              <input type="number" min="0" step="0.01" value={form.buyValue}
+                onChange={e => setForm(f => ({...f, buyValue:e.target.value}))}
+                placeholder="25000" style={inpStyle}/>
+            </div>
+            <div>
+              <label style={labelStyle}>Tempo de uso (meses) *</label>
+              <input type="number" min="1" value={form.usageMonths}
+                onChange={e => setForm(f => ({...f, usageMonths:e.target.value}))}
+                placeholder="36" style={inpStyle}/>
+            </div>
+          </div>
+          <div>
+            <label style={labelStyle}>Observacoes</label>
+            <input value={form.notes} onChange={e => setForm(f => ({...f, notes:e.target.value}))}
+              placeholder="Opcional — ex: comprada em 2024" style={inpStyle}/>
+          </div>
+
+          {form.buyValue && form.usageMonths && (
+            <div style={{ background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.2)', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#ccc' }}>
+              <div style={{ color:OR, fontSize:11, fontWeight:700, marginBottom:4 }}>Calculo automatico:</div>
+              <div>Custo mensal: <strong>{fmt(parseFloat(form.buyValue)/parseFloat(form.usageMonths))}</strong></div>
+              <div>Custo por evento: <strong style={{ color:OR }}>{fmt(parseFloat(form.buyValue)/parseFloat(form.usageMonths)/(settings.monthlyEvents||4))}</strong></div>
+              <div style={{ color:'#555', fontSize:10, marginTop:4 }}>Considerando {settings.monthlyEvents || 4} eventos por mes</div>
+            </div>
+          )}
+        </div>
+
+        <div style={{ display:'flex', gap:10, marginTop:20 }}>
+          <button onClick={() => setModal(false)}
+            style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
+            Cancelar
+          </button>
+          <button onClick={save}
+            style={{ flex:2, padding:'11px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
+            <Save size={14}/> {editId ? 'Atualizar' : 'Cadastrar'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
 
   return (
     <Layout>
@@ -164,77 +266,9 @@ export default function Equipamentos() {
             })}
           </div>
         )}
-
-        {modal && (
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.88)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16, overflowY:'auto' }}
-            onClick={() => setModal(false)}>
-            <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:18, padding:24, width:'100%', maxWidth:440, maxHeight:'90vh', overflowY:'auto' }}
-              onClick={e => e.stopPropagation()}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
-                <h2 style={{ color:'#fff', fontSize:17, fontWeight:800, margin:0 }}>{editId ? 'Editar equipamento' : 'Novo equipamento'}</h2>
-                <button onClick={() => setModal(false)} style={{ background:'none', border:'none', cursor:'pointer', color:'#555' }}><X size={20}/></button>
-              </div>
-
-              <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
-                <div>
-                  <label style={labelStyle}>Nome do equipamento *</label>
-                  <input value={form.name} onChange={e => setForm(f => ({...f, name:e.target.value}))} placeholder="Ex: Canon R5" style={inpStyle}/>
-                </div>
-                <div>
-                  <label style={labelStyle}>Categoria</label>
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:6 }}>
-                    {CATEGORIAS.map(c => (
-                      <button key={c.id} type="button" onClick={() => setForm(f => ({...f, category:c.id}))}
-                        style={{ padding:'8px', borderRadius:8, border:`1px solid ${form.category===c.id ? OR+'66' : 'rgba(255,255,255,.07)'}`, background: form.category===c.id ? OR+'18' : 'transparent', color: form.category===c.id ? OR : '#666', fontSize:11, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                        {c.icon} {c.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                  <div>
-                    <label style={labelStyle}>Valor de compra (R$) *</label>
-                    <input type="number" min="0" step="0.01" value={form.buyValue}
-                      onChange={e => setForm(f => ({...f, buyValue:e.target.value}))}
-                      placeholder="25000" style={inpStyle}/>
-                  </div>
-                  <div>
-                    <label style={labelStyle}>Tempo de uso (meses) *</label>
-                    <input type="number" min="1" value={form.usageMonths}
-                      onChange={e => setForm(f => ({...f, usageMonths:e.target.value}))}
-                      placeholder="36" style={inpStyle}/>
-                  </div>
-                </div>
-                <div>
-                  <label style={labelStyle}>Observacoes</label>
-                  <input value={form.notes} onChange={e => setForm(f => ({...f, notes:e.target.value}))}
-                    placeholder="Opcional — ex: comprada em 2024" style={inpStyle}/>
-                </div>
-
-                {form.buyValue && form.usageMonths && (
-                  <div style={{ background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.2)', borderRadius:10, padding:'12px 14px', fontSize:12, color:'#ccc' }}>
-                    <div style={{ color:OR, fontSize:11, fontWeight:700, marginBottom:4 }}>Calculo automatico:</div>
-                    <div>Custo mensal: <strong>{fmt(parseFloat(form.buyValue)/parseFloat(form.usageMonths))}</strong></div>
-                    <div>Custo por evento: <strong style={{ color:OR }}>{fmt(parseFloat(form.buyValue)/parseFloat(form.usageMonths)/(settings.monthlyEvents||4))}</strong></div>
-                    <div style={{ color:'#555', fontSize:10, marginTop:4 }}>Considerando {settings.monthlyEvents || 4} eventos por mes</div>
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display:'flex', gap:10, marginTop:20 }}>
-                <button onClick={() => setModal(false)}
-                  style={{ flex:1, padding:'11px', borderRadius:10, background:'rgba(255,255,255,.05)', border:'1px solid rgba(255,255,255,.1)', color:'#888', fontSize:13, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>
-                  Cancelar
-                </button>
-                <button onClick={save}
-                  style={{ flex:2, padding:'11px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:7 }}>
-                  <Save size={14}/> {editId ? 'Atualizar' : 'Cadastrar'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
+
+      {modal && <Modal/>}
     </Layout>
   );
 }
