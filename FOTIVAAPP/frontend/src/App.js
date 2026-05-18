@@ -1,9 +1,12 @@
+
+Copiar
+
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
-
+import { Toaster } from 'sonner';
+ 
 import { AuthProvider, useAuth } from './contexts/AuthContext';
-
+ 
 import Login              from './pages/Login';
 import Register           from './pages/Register';
 import ResetPassword      from './pages/ResetPassword';
@@ -26,21 +29,21 @@ import GaleriaCliente     from './pages/GaleriaCliente';
 import TermosPrivacidade  from './pages/TermosPrivacidade';
 import Calculadora        from './pages/Calculadora';
 import Equipamentos       from './pages/Equipamentos';
-
+ 
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
     this.state = { hasError: false, error: null };
   }
-
+ 
   static getDerivedStateFromError(error) {
     return { hasError: true, error };
   }
-
+ 
   componentDidCatch(error, info) {
     console.error('[ErrorBoundary]', error, info);
   }
-
+ 
   render() {
     if (this.state.hasError) {
       return (
@@ -91,7 +94,7 @@ class ErrorBoundary extends React.Component {
     return this.props.children;
   }
 }
-
+ 
 function Private({ children, requireSub = true }) {
   const { user, loading } = useAuth();
   if (loading) return (
@@ -108,7 +111,7 @@ function Private({ children, requireSub = true }) {
   }
   return children;
 }
-
+ 
 export default function App() {
   return (
     <ErrorBoundary>
@@ -140,9 +143,13 @@ export default function App() {
             <Route path="/equipamentos"       element={<Private><Equipamentos /></Private>} />
             <Route path="*"                   element={<Navigate to="/dashboard" replace />} />
           </Routes>
-          <Toaster position="top-right" toastOptions={{
-            style:{ background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' }
-          }}/>
+          <Toaster
+            position="top-right"
+            theme="dark"
+            toastOptions={{
+              style: { background:'#1C1C1C', border:'1px solid rgba(255,255,255,.08)', color:'#fff' }
+            }}
+          />
         </AuthProvider>
       </BrowserRouter>
     </ErrorBoundary>
