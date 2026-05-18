@@ -294,7 +294,6 @@ Qualquer duvida e so falar! 😊`;
               <div style={{ color:'#ccc', fontSize:13, marginTop:2, fontFamily:'monospace', wordBreak:'break-all' }}>{APP_URL}/galeria/{current._id}</div>
             </div>
             <button onClick={() => copyLink(current)} style={btnStyle({ background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', padding:'8px 16px' })}>
-              Copiar
             </button>
           </div>
 
