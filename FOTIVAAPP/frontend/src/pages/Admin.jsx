@@ -100,7 +100,7 @@ export default function AdminPanel() {
   // Anúncios
   const loadAds = useCallback(async () => {
     setAdsLoading(true);
-    try { const r = await axios.get('/api/ads/admin/all', { headers: { Authorization: `Bearer ${token}` } }); setAds(r.data); }
+    try { const r = await axios.get('/api/ads/admin/all', { headers: { Authorization: `Bearer ${token}` } }); setAds(Array.isArray(r.data) ? r.data : (r.data.ads || [])); }
     catch { console.error('Erro ao carregar anúncios'); }
     setAdsLoading(false);
   }, [token]);
