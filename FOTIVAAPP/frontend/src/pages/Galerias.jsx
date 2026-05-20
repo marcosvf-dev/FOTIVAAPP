@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../lib/api';
@@ -481,8 +482,8 @@ Qualquer duvida e so falar! 😊`;
       </div>
 
       {/* Modal: Criar galeria */}
-      {modal === 'create' && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'20px 16px', overflowY:'auto'}}>
+      {modal === 'create' && createPortal(
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, padding:'16px', overflowY:'auto'}}>
           <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:460, margin:'auto'}}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
               <h2 style={{ color:'#fff', fontSize:18, fontWeight:800, margin:0 }}>Nova Galeria</h2>
@@ -542,7 +543,7 @@ Qualquer duvida e so falar! 😊`;
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
 
       {/* Modal: Gerenciar galeria */}
 
