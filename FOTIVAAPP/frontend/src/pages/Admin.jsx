@@ -4,7 +4,7 @@ import {
   Users, DollarSign, TrendingUp, Clock, Search,
   ChevronLeft, ChevronRight, Shield, LogOut,
   Tag, Plus, Trash2, ToggleLeft, ToggleRight,
-  Edit2, X, Save, Check, AlertCircle
+  Edit2, X, Save, Check, AlertCircle, Megaphone
 } from 'lucide-react';
 
 const API = process.env.REACT_APP_BACKEND_URL || '';
