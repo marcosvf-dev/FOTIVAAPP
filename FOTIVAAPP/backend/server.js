@@ -57,6 +57,8 @@ app.use('/api/coupons',      require('./routes/coupons'));
 app.use('/api/installments', require('./routes/installments'));
 app.use('/api/ads',          require('./routes/ads'));
 app.use('/api/gallery',      require('./routes/gallery'));
+app.use('/api/equipments',   require('./routes/equipments'));
+app.use('/api/settings',     require('./routes/settings'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
 app.use('/api/backup',       require('./routes/backup'));
 
