@@ -13,7 +13,6 @@ const auth = async (req, res, next) => {
     const user    = await User.findById(payload.id).select('-passwordHash');
     if (!user) return res.status(401).json({ error: 'Usuário não encontrado' });
 
-    // Invalida token se tokenVersion não bater
     if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
       return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.', code: 'TOKEN_REVOKED' });
     }
@@ -26,37 +25,53 @@ const auth = async (req, res, next) => {
 };
 
 const requireActive = async (req, res, next) => {
-  const s   = req.user.subscription;
-  const now = new Date();
-  if (s.status === 'active') return next();
-  if (s.status === 'trial' && s.trialEndsAt > now) return next();
-  return res.status(403).json({ error: 'Assinatura necessária', code: 'SUBSCRIPTION_REQUIRED', trialExpired: s.status === 'trial' });
+  try {
+    const s   = req.user.subscription || {};
+    const now = new Date();
+    if (s.status === 'active') return next();
+    if (s.status === 'trial' && new Date(s.trialEndsAt) > now) return next();
+    return res.status(403).json({ error: 'Assinatura necessária', code: 'SUBSCRIPTION_REQUIRED', trialExpired: s.status === 'trial' });
+  } catch (e) {
+    return res.status(403).json({ error: 'Assinatura necessária', code: 'SUBSCRIPTION_REQUIRED' });
+  }
 };
 
 const requirePro = async (req, res, next) => {
-  const s        = req.user.subscription;
-  const isActive = s.status === 'active' || (s.status === 'trial' && s.trialEndsAt > new Date());
-  if (isActive && s.plan === 'pro') return next();
-  return res.status(403).json({ error: 'Recurso exclusivo do plano PRO', code: 'PRO_REQUIRED' });
+  try {
+    const s        = req.user.subscription || {};
+    const isActive = s.status === 'active' || (s.status === 'trial' && new Date(s.trialEndsAt) > new Date());
+    if (isActive && s.plan === 'pro') return next();
+    return res.status(403).json({ error: 'Recurso exclusivo do plano PRO', code: 'PRO_REQUIRED' });
+  } catch (e) {
+    return res.status(403).json({ error: 'Recurso exclusivo do plano PRO', code: 'PRO_REQUIRED' });
+  }
 };
 
 const requireNormalOrPro = async (req, res, next) => {
-  const s        = req.user.subscription;
-  const isActive = s.status === 'active' || (s.status === 'trial' && s.trialEndsAt > new Date());
-  if (isActive && (s.plan === 'normal' || s.plan === 'pro')) return next();
-  if (s.status === 'trial' && s.trialEndsAt > new Date()) return next();
-  return res.status(403).json({ error: 'Recurso disponível nos planos Normal e PRO', code: 'NORMAL_REQUIRED', upgrade: true });
+  try {
+    const s        = req.user.subscription || {};
+    const isActive = s.status === 'active' || (s.status === 'trial' && new Date(s.trialEndsAt) > new Date());
+    if (isActive && (s.plan === 'normal' || s.plan === 'pro')) return next();
+    if (s.status === 'trial' && new Date(s.trialEndsAt) > new Date()) return next();
+    return res.status(403).json({ error: 'Recurso disponível nos planos Normal e PRO', code: 'NORMAL_REQUIRED', upgrade: true });
+  } catch (e) {
+    return res.status(403).json({ error: 'Recurso disponível nos planos Normal e PRO', code: 'NORMAL_REQUIRED', upgrade: true });
+  }
 };
 
 const checkClientLimit = async (req, res, next) => {
-  const s = req.user.subscription;
-  if (s.status === 'active' && s.plan === 'starter') {
-    const count = await Client.countDocuments({ userId: req.user._id });
-    if (count >= 20) {
-      return res.status(403).json({ error: 'Limite de 20 clientes atingido. Faça upgrade para o Normal.', code: 'CLIENT_LIMIT', upgrade: true });
+  try {
+    const s = req.user.subscription || {};
+    if (s.status === 'active' && s.plan === 'starter') {
+      const count = await Client.countDocuments({ userId: req.user._id });
+      if (count >= 20) {
+        return res.status(403).json({ error: 'Limite de 20 clientes atingido. Faça upgrade para o Normal.', code: 'CLIENT_LIMIT', upgrade: true });
+      }
     }
+    next();
+  } catch (e) {
+    next();
   }
-  next();
 };
 
 const requireAdmin = (req, res, next) => {
