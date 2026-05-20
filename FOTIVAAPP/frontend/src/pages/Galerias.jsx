@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/Layout';
 import api from '../lib/api';
@@ -358,8 +357,8 @@ Qualquer duvida e so falar! 😊`;
           )}
         </div>
         {/* Modal editar credenciais */}
-        {editModal && createPortal(
-          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, padding:20 }}
+        {editModal && (
+          <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:2000, padding:20 }}
             onClick={() => setEditModal(false)}>
             <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:400 }}
               onClick={e => e.stopPropagation()}>
@@ -482,7 +481,7 @@ Qualquer duvida e so falar! 😊`;
       </div>
 
       {/* Modal: Criar galeria */}
-      {modal === 'create' && createPortal(
+      {modal === 'create' && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'flex-start', justifyContent:'center', zIndex:1000, padding:'20px 16px', overflowY:'auto'}}>
           <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:460, margin:'auto'}}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:24 }}>
