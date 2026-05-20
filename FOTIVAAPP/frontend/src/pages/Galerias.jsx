@@ -524,6 +524,18 @@ Qualquer duvida e so falar! 😊`;
                   sub="Cliente poderá baixar as fotos"
                   color="#3B82F6"
                 />
+                {form.downloadEnabled && (
+                  <div style={{ paddingLeft:4 }}>
+                    <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Limite de downloads (deixe vazio = ilimitado)</label>
+                    <input
+                      type="number" min="1"
+                      value={form.downloadLimit}
+                      onChange={e => setForm({...form, downloadLimit: e.target.value})}
+                      placeholder="Ex: 10 (deixe vazio para ilimitado)"
+                      style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:13, outline:'none', fontFamily:'inherit', boxSizing:'border-box' }}
+                    />
+                  </div>
+                )}
                 <Toggle
                   value={form.watermarkEnabled}
                   onChange={v => setForm({...form, watermarkEnabled:v})}
