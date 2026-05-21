@@ -15,6 +15,7 @@ const s3 = new S3Client({
 });
 
 // Upload com compressão (usa sharp se disponível)
+// Salva 3 versões: original (download), full webp (galeria), thumb webp (preview)
 async function uploadPhoto(buffer, mimeType, path) {
   let full = buffer, thumb = buffer, width, height;
 
@@ -27,15 +28,18 @@ async function uploadPhoto(buffer, mimeType, path) {
     thumb = await sharp(buffer).resize({ width:400,  height:400,  fit:'cover' }).webp({ quality:75 }).toBuffer();
   } catch { /* sem sharp, usa original */ }
 
-  const fullKey  = `${path}.webp`;
-  const thumbKey = `${path}_thumb.webp`;
+  const fullKey     = `${path}.webp`;
+  const thumbKey    = `${path}_thumb.webp`;
+  const originalKey = `${path}_original`;
+  const originalContentType = mimeType || 'image/jpeg';
 
   await Promise.all([
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:fullKey,  Body:full,  ContentType:'image/webp' })),
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:thumbKey, Body:thumb, ContentType:'image/webp' })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:fullKey,     Body:full,   ContentType:'image/webp' })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:thumbKey,    Body:thumb,  ContentType:'image/webp' })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:originalKey, Body:buffer, ContentType:originalContentType })),
   ]);
 
-  return { fullKey, thumbKey, width, height, size: full.length };
+  return { fullKey, thumbKey, originalKey, width, height, size: full.length };
 }
 
 // URL assinada válida por 24h
