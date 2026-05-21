@@ -61,4 +61,52 @@ async function deleteGalleryFiles(prefix) {
   } catch {}
 }
 
-module.exports = { uploadPhoto, getSignedPhotoUrl, deleteFile, deleteGalleryFiles };
+// Upload com marca d'água em texto
+async function uploadPhotoWithWatermark(buffer, mimeType, path, watermarkText) {
+  let full = buffer, thumb = buffer, width, height;
+
+  try {
+    const sharp = require('sharp');
+    const meta  = await sharp(buffer).metadata();
+    width  = meta.width;
+    height = meta.height;
+
+    const resized = await sharp(buffer)
+      .resize({ width: 2400, height: 2400, fit: 'inside', withoutEnlargement: true })
+      .toBuffer();
+
+    const resizedMeta = await sharp(resized).metadata();
+    const fontSize    = Math.max(24, Math.round(resizedMeta.width * 0.04));
+    const svgText     = `<svg width="${resizedMeta.width}" height="${resizedMeta.height}">
+      <text x="50%" y="95%" text-anchor="middle" font-size="${fontSize}"
+        font-family="Arial" fill="rgba(255,255,255,0.55)"
+        stroke="rgba(0,0,0,0.3)" stroke-width="1">${watermarkText}</text>
+    </svg>`;
+
+    full = await sharp(resized)
+      .composite([{ input: Buffer.from(svgText), blend: 'over' }])
+      .webp({ quality: 88 })
+      .toBuffer();
+
+    thumb = await sharp(buffer)
+      .resize({ width: 400, height: 400, fit: 'cover' })
+      .composite([{ input: Buffer.from(svgText.replace(`width="${resizedMeta.width}" height="${resizedMeta.height}"`, 'width="400" height="400"')), blend: 'over' }])
+      .webp({ quality: 75 })
+      .toBuffer();
+  } catch { /* sem sharp, usa original */ }
+
+  const fullKey          = `${path}.webp`;
+  const thumbKey         = `${path}_thumb.webp`;
+  const originalKey      = `${path}_original`;
+  const originalContentType = mimeType || 'image/jpeg';
+
+  await Promise.all([
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: fullKey,     Body: full,   ContentType: 'image/webp' })),
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: thumbKey,    Body: thumb,  ContentType: 'image/webp' })),
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: originalKey, Body: buffer, ContentType: originalContentType })),
+  ]);
+
+  return { fullKey, thumbKey, originalKey, width, height, size: full.length };
+}
+
+module.exports = { uploadPhoto, uploadPhotoWithWatermark, getSignedPhotoUrl, deleteFile, deleteGalleryFiles };
