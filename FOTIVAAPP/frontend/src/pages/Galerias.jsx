@@ -67,6 +67,7 @@ export default function Galerias() {
     try {
       const { data } = await api.get(`/api/gallery/photographer/${id}`);
       setCurrent(data);
+      setEditForm(f => ({ ...f, currentPassword: data.passwordPlain || '' }));
       setModal('gallery');
     } catch(e) { toast.error('Erro ao carregar galeria'); }
   }
@@ -149,8 +150,9 @@ export default function Galerias() {
     try {
       const payload = { clientEmail: editForm.clientEmail };
       if (editForm.password.trim()) payload.password = editForm.password;
-      await api.patch(`/api/gallery/photographer/${current._id}/credentials`, payload);
+      const { data } = await api.patch(`/api/gallery/photographer/${current._id}/credentials`, payload);
       setCurrent(c => ({ ...c, clientEmail: editForm.clientEmail }));
+      if (data.passwordPlain) setEditForm(f => ({ ...f, currentPassword: data.passwordPlain, password: '' }));
       toast.success('Credenciais atualizadas!');
       setEditModal(false);
     } catch(e) { toast.error(e.response?.data?.error || 'Erro ao atualizar'); }
