@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import Layout from '../components/Layout';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Search, Phone, Mail, Edit2, Trash2, X, Save, MapPin, Hash, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, Gift } from 'lucide-react';
@@ -257,8 +258,8 @@ export default function Clientes() {
       </div>
 
       {/* Modal de edição */}
-      {editing && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:1000, padding:16, overflowY:'auto' }}>
+      {editing && createPortal(
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.85)', display:'flex', alignItems:'center', justifyContent:'center', zIndex:99999, padding:16, overflowY:'auto' }}>
           <div style={{ background:'#0d0d14', border:'1px solid rgba(255,255,255,.1)', borderRadius:20, padding:28, width:'100%', maxWidth:500, maxHeight:'85vh', overflowY:'auto', margin:'auto' }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20 }}>
               <h2 style={{ color:'#fff', fontSize:16, fontWeight:800, margin:0 }}>Editar — {editing.name}</h2>
@@ -321,7 +322,7 @@ export default function Clientes() {
             </div>
           </div>
         </div>
-      )}
+      , document.body)}
     </Layout>
   );
 }
