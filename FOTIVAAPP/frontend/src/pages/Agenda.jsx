@@ -69,7 +69,7 @@ export default function Agenda() {
             return (
               <div key={day}
                 style={{ minHeight: 60, background: tod ? 'rgba(232,119,34,0.12)' : evs.length ? 'rgba(255,255,255,0.03)' : 'transparent', border: `1px solid ${tod ? 'rgba(232,119,34,0.4)' : 'rgba(255,255,255,0.04)'}`, borderRadius: 10, padding: '6px 5px', cursor: evs.length ? 'pointer' : 'default', transition: 'all .15s' }}
-                onClick={() => evs.length && navigate('/eventos')}
+                onClick={() => evs.length && navigate(`/eventos/${evs[0]._id}`)}
                 onMouseEnter={e => { if(evs.length) e.currentTarget.style.borderColor='rgba(232,119,34,0.3)'; }}
                 onMouseLeave={e => { e.currentTarget.style.borderColor = tod ? 'rgba(232,119,34,0.4)' : 'rgba(255,255,255,0.04)'; }}>
                 <div style={{ textAlign: 'center', fontSize: 13, fontWeight: tod ? 800 : 500, color: tod ? '#E87722' : '#888', marginBottom: 4 }}>{day}</div>
@@ -92,7 +92,7 @@ export default function Agenda() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {Object.entries(evByDay).sort((a,b) => a[0]-b[0]).flatMap(([day, evs]) =>
               evs.map((ev, i) => (
-                <div key={`${day}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#161616', borderRadius: 10, cursor: 'pointer' }} onClick={() => navigate(`/eventos/editar/${ev._id}`)}>
+                <div key={`${day}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', background: '#161616', borderRadius: 10, cursor: 'pointer' }} onClick={() => navigate(`/eventos/${ev._id}`)}>
                   <div style={{ width: 36, height: 36, background: 'rgba(232,119,34,0.1)', border: '1px solid rgba(232,119,34,0.2)', borderRadius: 9, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <span style={{ color: '#E87722', fontSize: 13, fontWeight: 800 }}>{day}</span>
                   </div>
