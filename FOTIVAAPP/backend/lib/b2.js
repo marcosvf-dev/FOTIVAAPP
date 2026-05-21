@@ -93,12 +93,21 @@ async function uploadPhotoWithWatermark(buffer, mimeType, path, watermarkText) {
       .composite([{ input: Buffer.from(svgText.replace(`width="${resizedMeta.width}" height="${resizedMeta.height}"`, 'width="400" height="400"')), blend: 'over' }])
       .webp({ quality: 75 })
       .toBuffer();
-  } catch { /* sem sharp, usa original */ }
+  } catch (e) {
+    console.warn('Sharp watermark falhou, usando original:', e.message);
+    full  = buffer;
+    thumb = buffer;
+  }
 
   const fullKey          = `${path}.webp`;
   const thumbKey         = `${path}_thumb.webp`;
   const originalKey      = `${path}_original`;
   const originalContentType = mimeType || 'image/jpeg';
+
+  // Garante que nenhum buffer está vazio antes de enviar
+  if (!full?.length || !thumb?.length || !buffer?.length) {
+    throw new Error('Buffer de imagem inválido ou vazio');
+  }
 
   await Promise.all([
     s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: fullKey,     Body: full,   ContentType: 'image/webp' })),
