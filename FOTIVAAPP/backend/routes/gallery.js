@@ -45,6 +45,7 @@ router.post('/photographer', async (req, res) => {
     title, description: description || '',
     clientName, clientEmail,
     password: hashedPwd,
+    passwordPlain: password.trim(),
     faceEnabled:      !!faceEnabled,
     downloadEnabled:  !!downloadEnabled,
     downloadLimit:    downloadLimit !== undefined && downloadLimit !== '' ? parseInt(downloadLimit) : null,
@@ -62,14 +63,20 @@ router.get('/photographer/:id', async (req, res) => {
   const gallery = await Gallery.findOne({ _id: req.params.id, userId: req.user._id });
   if (!gallery) return res.status(404).json({ error: 'Galeria não encontrada' });
 
-  const photosWithUrls = await Promise.all(gallery.photos.map(async p => ({
-    id: p.id, filename: p.filename, selected: p.selected,
-    size: p.size, width: p.width, height: p.height,
-    url:          p.b2FileName ? await getSignedPhotoUrl(p.b2FileName).catch(() => null) : null,
-    thumbnailUrl: p.b2FileName ? await getSignedPhotoUrl(p.b2FileName.replace('.webp','_thumb.webp')).catch(() => null) : null,
-  })));
+  const photosWithUrls = await Promise.all(gallery.photos.map(async p => {
+    const thumbKey = p.b2ThumbKey
+      || (p.b2FileName?.endsWith('_full') ? p.b2FileName.replace('_full','_thumb') : null)
+      || (p.b2FileName?.endsWith('.webp') ? p.b2FileName.replace('.webp','_thumb.webp') : null)
+      || p.b2FileName;
+    return {
+      id: p.id, filename: p.filename, selected: p.selected,
+      size: p.size, width: p.width, height: p.height,
+      url:          p.b2FileName ? await getSignedPhotoUrl(p.b2FileName).catch(() => null) : null,
+      thumbnailUrl: thumbKey ? await getSignedPhotoUrl(thumbKey).catch(() => null) : null,
+    };
+  }));
 
-  res.json({ ...gallery.toObject(), photos: photosWithUrls });
+  res.json({ ...gallery.toObject(), passwordPlain: gallery.passwordPlain || '', photos: photosWithUrls });
 });
 
 // Atualizar configurações da galeria (download, marca d'água)
@@ -85,9 +92,10 @@ router.patch('/photographer/:id/credentials', async (req, res) => {
   if (password && password.trim()) {
     const bcrypt = require('bcryptjs');
     gallery.password = await bcrypt.hash(password.trim(), 10);
+    gallery.passwordPlain = password.trim();
   }
   await gallery.save();
-  res.json({ ok: true, clientEmail: gallery.clientEmail });
+  res.json({ ok: true, clientEmail: gallery.clientEmail, passwordPlain: gallery.passwordPlain || '' });
 });
 
 // PATCH /api/gallery/photographer/:id/settings — download, marca dagua, limite
