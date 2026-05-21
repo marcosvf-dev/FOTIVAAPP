@@ -23,6 +23,7 @@ const gallerySchema = new mongoose.Schema({
   clientName:       { type: String, required: true },
   clientEmail:      { type: String, required: true },
   password:         { type: String, required: true },
+  passwordPlain:    { type: String, default: '' },
 
   status:           { type: String, enum: ['active','closed'], default: 'active' },
 
