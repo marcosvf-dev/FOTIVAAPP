@@ -33,10 +33,14 @@ async function uploadPhoto(buffer, mimeType, path) {
   const originalKey = `${path}_original`;
   const originalContentType = mimeType || 'image/jpeg';
 
+  const fullBuf2     = Buffer.from(full);
+  const thumbBuf2    = Buffer.from(thumb);
+  const originalBuf2 = Buffer.from(buffer);
+
   await Promise.all([
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:fullKey,     Body:full,   ContentType:'image/webp' })),
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:thumbKey,    Body:thumb,  ContentType:'image/webp' })),
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:originalKey, Body:buffer, ContentType:originalContentType })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:fullKey,     Body:fullBuf2,     ContentType:'image/webp',         ContentLength: fullBuf2.length })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:thumbKey,    Body:thumbBuf2,    ContentType:'image/webp',         ContentLength: thumbBuf2.length })),
+    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:originalKey, Body:originalBuf2, ContentType:originalContentType,  ContentLength: originalBuf2.length })),
   ]);
 
   return { fullKey, thumbKey, originalKey, width, height, size: full.length };
@@ -109,10 +113,15 @@ async function uploadPhotoWithWatermark(buffer, mimeType, path, watermarkText) {
     throw new Error('Buffer de imagem inválido ou vazio');
   }
 
+  // Força Buffer Node.js puro e envia ContentLength explícito
+  const fullBuf     = Buffer.from(full);
+  const thumbBuf    = Buffer.from(thumb);
+  const originalBuf = Buffer.from(buffer);
+
   await Promise.all([
-    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: fullKey,     Body: full,   ContentType: 'image/webp' })),
-    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: thumbKey,    Body: thumb,  ContentType: 'image/webp' })),
-    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: originalKey, Body: buffer, ContentType: originalContentType })),
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: fullKey,     Body: fullBuf,     ContentType: 'image/webp',          ContentLength: fullBuf.length })),
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: thumbKey,    Body: thumbBuf,    ContentType: 'image/webp',          ContentLength: thumbBuf.length })),
+    s3.send(new PutObjectCommand({ Bucket: B2_BUCKET, Key: originalKey, Body: originalBuf, ContentType: originalContentType,   ContentLength: originalBuf.length })),
   ]);
 
   return { fullKey, thumbKey, originalKey, width, height, size: full.length };
