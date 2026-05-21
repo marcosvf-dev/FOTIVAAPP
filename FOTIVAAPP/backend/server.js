@@ -9,7 +9,7 @@ const helmet    = require('helmet');
 
 const app = express();
 
-app.use(helmet({ contentSecurityPolicy: false }));
+app.set('trust proxy', 1); // Render fica atrás de proxy
 
 const origins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
@@ -31,8 +31,8 @@ app.use('/api/auth/register',        rateLimit({ windowMs:15*60*1000, max:10, me
 app.use('/api/auth/forgot-password', rateLimit({ windowMs:60*60*1000, max:5,  message:{ error:'Muitas tentativas. Tente em 1 hora.' }, standardHeaders:true, legacyHeaders:false }));
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 mongoose.connect(process.env.MONGO_URL, { dbName: process.env.DB_NAME || 'fotiva' })
   .then(() => console.log('✅ MongoDB conectado'))
