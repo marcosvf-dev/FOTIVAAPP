@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Check, Image, Lock, Send, Loader, Camera, X, Download, ShoppingCart } from 'lucide-react';
+import { Check, Image, Lock, Send, Loader, Camera, X, Download, ShoppingCart, Info, AlertCircle, MessageCircle } from 'lucide-react';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 const OR = '#E87722';
@@ -11,25 +11,26 @@ const inp  = (extra={}) => ({ width:'100%', background:'rgba(255,255,255,.05)', 
 
 export default function GaleriaCliente() {
   const { id } = useParams();
-  const [step,       setStep]       = useState('login');
-  const [email,      setEmail]      = useState('');
-  const [password,   setPassword]   = useState('');
-  const [loginErr,   setLoginErr]   = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [gallery,    setGallery]    = useState(null);
-  const [photos,     setPhotos]     = useState([]);
-  const [selected,   setSelected]   = useState(new Set());
-  const [sending,    setSending]    = useState(false);
-  const [lightbox,   setLightbox]   = useState(null);
-  const [downloading,setDownloading]= useState(null);
-  const [payModal,   setPayModal]   = useState(false);
+  const [step,        setStep]        = useState('login');
+  const [email,       setEmail]       = useState('');
+  const [password,    setPassword]    = useState('');
+  const [loginErr,    setLoginErr]    = useState('');
+  const [loading,     setLoading]     = useState(false);
+  const [gallery,     setGallery]     = useState(null);
+  const [photos,      setPhotos]      = useState([]);
+  const [selected,    setSelected]    = useState(new Set());
+  const [sending,     setSending]     = useState(false);
+  const [lightbox,    setLightbox]    = useState(null);
+  const [downloading, setDownloading] = useState(null);
+  const [payModal,    setPayModal]    = useState(false);
+  const [finishData,  setFinishData]  = useState(null);
 
   async function doLogin() {
     setLoginErr(''); setLoading(true);
     try {
       const { data } = await axios.post(`${BACKEND}/api/gallery/client/login`,
         { galleryId: id, email, password },
-        { timeout: 15000 }
+        { timeout: 20000 }
       );
       setGallery(data.gallery);
       setPhotos(data.photos);
@@ -57,22 +58,33 @@ export default function GaleriaCliente() {
 
   async function finishSelection() {
     if (!selected.size) return alert('Selecione pelo menos 1 foto antes de finalizar.');
-    if (!window.confirm(`Finalizar selecao com ${selected.size} foto(s)?\n\nO fotografo recebera a lista por email.`)) return;
+    if (!window.confirm(`Finalizar seleção com ${selected.size} foto(s)?`)) return;
     setSending(true);
     try {
-      await axios.post(
+      const { data } = await axios.post(
         `${BACKEND}/api/gallery/client/${id}/finish`,
         { email, password },
-        { timeout: 20000 }
+        { timeout: 15000 }
       );
+      setFinishData(data);
       setStep('done');
     } catch (e) {
-      alert(e.response?.data?.error || 'Erro ao enviar. Tente novamente.');
+      alert(e.response?.data?.error || 'Erro ao finalizar. Tente novamente.');
     }
     setSending(false);
   }
 
+  function openWhatsApp() {
+    if (!finishData) return;
+    const phone = finishData.photographerPhone;
+    if (!phone) { alert('Número do fotógrafo não disponível. Entre em contato diretamente.'); return; }
+    const lista = finishData.selectedFilenames.map((f, i) => `${i+1}. ${f}`).join('\n');
+    const msg = `Olá${finishData.photographerName ? ', ' + finishData.photographerName : ''}! 👋\n\nSou *${finishData.clientName}* e acabei de finalizar minha seleção da galeria *${finishData.galleryTitle}*.\n\nSelecionei *${finishData.selectedCount} foto(s)*:\n${lista}\n\nAguardo o retorno! 😊`;
+    window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`, '_blank');
+  }
+
   async function downloadPhoto(photo) {
+    if (downloadBloqueado) { setPayModal(true); return; }
     setDownloading(photo.id);
     try {
       const { data } = await axios.post(
@@ -89,13 +101,12 @@ export default function GaleriaCliente() {
     setDownloading(null);
   }
 
-  // Calcula fotos excedentes e valor a pagar
-  const downloadLimit  = gallery?.downloadLimit ?? null;  // null = ilimitado
-  const extraPhotoPrice= gallery?.extraPhotoPrice || 0;
-  const selectedArr    = Array.from(selected);
-  const includedPhotos = downloadLimit !== null ? Math.min(selectedArr.length, downloadLimit) : selectedArr.length;
-  const extraPhotos    = downloadLimit !== null ? Math.max(0, selectedArr.length - downloadLimit) : 0;
-  const extraTotal     = extraPhotos * extraPhotoPrice;
+  const downloadLimit     = gallery?.downloadLimit ?? null;
+  const extraPhotoPrice   = gallery?.extraPhotoPrice || 0;
+  const selectedArr       = Array.from(selected);
+  const extraPhotos       = downloadLimit !== null ? Math.max(0, selectedArr.length - downloadLimit) : 0;
+  const extraTotal        = extraPhotos * extraPhotoPrice;
+  const downloadBloqueado = downloadLimit !== null && extraPhotos > 0;
 
   // ── LOGIN ──
   if (step === 'login') return (
@@ -106,7 +117,7 @@ export default function GaleriaCliente() {
             <Image size={32} color="#fff"/>
           </div>
           <h1 style={{ color:'#fff', fontSize:24, fontWeight:800, marginBottom:8 }}>Acessar Galeria</h1>
-          <p style={{ color:'#666', fontSize:14, lineHeight:1.6 }}>Use o email e senha que o fotografo enviou para voce</p>
+          <p style={{ color:'#666', fontSize:14, lineHeight:1.6 }}>Use o email e senha que o fotógrafo enviou para você</p>
         </div>
         <div style={dark({ padding:28 })}>
           <div style={{ marginBottom:16 }}>
@@ -141,17 +152,27 @@ export default function GaleriaCliente() {
   // ── DONE ──
   if (step === 'done') return (
     <div style={{ minHeight:'100vh', background:'#080810', display:'flex', alignItems:'center', justifyContent:'center', padding:20, fontFamily:'Inter,sans-serif' }}>
-      <div style={{ textAlign:'center', maxWidth:420 }}>
+      <div style={{ textAlign:'center', maxWidth:440 }}>
         <div style={{ width:80, height:80, borderRadius:'50%', background:'rgba(34,197,94,.1)', border:'2px solid rgba(34,197,94,.3)', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 24px' }}>
           <Check size={40} color="#22C55E"/>
         </div>
-        <h1 style={{ color:'#fff', fontSize:28, fontWeight:800, marginBottom:12 }}>Selecao enviada!</h1>
-        <p style={{ color:'#666', fontSize:15, lineHeight:1.7, marginBottom:8 }}>
-          Voce selecionou <strong style={{ color:OR }}>{selected.size} foto(s)</strong>.<br/>
-          O fotografo ja recebeu sua lista por email.
+        <h1 style={{ color:'#fff', fontSize:28, fontWeight:800, marginBottom:12 }}>Seleção finalizada!</h1>
+        <p style={{ color:'#666', fontSize:15, lineHeight:1.7, marginBottom:24 }}>
+          Você escolheu <strong style={{ color:OR }}>{finishData?.selectedCount || selected.size} foto(s)</strong>.<br/>
+          Agora envie a confirmação para o fotógrafo pelo WhatsApp.
         </p>
-        <p style={{ color:'#444', fontSize:13, marginTop:16 }}>Voce pode fechar esta pagina.</p>
-        <div style={{ color:'#333', fontSize:12, marginTop:32 }}>Powered by <span style={{ color:OR, fontWeight:700 }}>Fotiva</span></div>
+        {finishData?.photographerPhone ? (
+          <button onClick={openWhatsApp}
+            style={{ display:'inline-flex', alignItems:'center', gap:10, padding:'14px 28px', borderRadius:12, background:'#25D366', border:'none', color:'#fff', fontSize:16, fontWeight:800, cursor:'pointer', fontFamily:'inherit', marginBottom:16 }}>
+            <MessageCircle size={20}/> Enviar seleção pelo WhatsApp
+          </button>
+        ) : (
+          <div style={{ background:'rgba(255,255,255,.04)', border:'1px solid rgba(255,255,255,.08)', borderRadius:12, padding:'14px 18px', color:'#888', fontSize:13, marginBottom:16 }}>
+            Entre em contato diretamente com o fotógrafo para confirmar sua seleção.
+          </div>
+        )}
+        <p style={{ color:'#333', fontSize:12, marginTop:8 }}>Você pode fechar esta página após enviar a mensagem.</p>
+        <div style={{ color:'#222', fontSize:12, marginTop:24 }}>Powered by <span style={{ color:OR, fontWeight:700 }}>Fotiva</span></div>
       </div>
       <style>{`@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}`}</style>
     </div>
@@ -160,54 +181,117 @@ export default function GaleriaCliente() {
   // ── GALERIA ──
   return (
     <div style={{ minHeight:'100vh', background:'#080810', fontFamily:'Inter,sans-serif' }}>
+
+      {/* Header */}
       <div style={{ borderBottom:'1px solid rgba(255,255,255,.06)', padding:'14px 24px', display:'flex', alignItems:'center', justifyContent:'space-between', position:'sticky', top:0, background:'rgba(8,8,16,.95)', backdropFilter:'blur(20px)', zIndex:100 }}>
         <div>
           <div style={{ fontSize:16, fontWeight:800, color:'#fff' }}>{gallery.title}</div>
           <div style={{ fontSize:12, color:'#555', marginTop:1 }}>
-            {gallery.totalPhotos} fotos · {selected.size} selecionadas
-            {downloadLimit !== null && (
-              <span style={{ color: extraPhotos > 0 ? '#E87722' : '#22C55E', marginLeft:8 }}>
-                · {downloadLimit} incluidas no pacote
-              </span>
-            )}
+            {gallery.totalPhotos} fotos
+            {downloadLimit !== null
+              ? <span style={{ color: downloadBloqueado ? OR : '#22C55E', marginLeft:6 }}>
+                  · {selected.size}/{downloadLimit} selecionadas
+                  {downloadBloqueado && ` (+${extraPhotos} excedente${extraPhotos > 1 ? 's' : ''})`}
+                </span>
+              : <span style={{ color:'#22C55E', marginLeft:6 }}>· {selected.size} selecionadas</span>
+            }
           </div>
         </div>
         <button onClick={finishSelection} disabled={!selected.size || sending}
           style={btn({ background: selected.size ? `linear-gradient(135deg,${OR},#C85A00)` : 'rgba(255,255,255,.05)', color: selected.size ? '#fff' : '#444', border: selected.size ? 'none' : '1px solid rgba(255,255,255,.08)', cursor: selected.size ? 'pointer' : 'default' })}>
           {sending ? <Loader size={15} style={{ animation:'spin 1s linear infinite' }}/> : <Send size={15}/>}
-          {sending ? 'Enviando...' : selected.size ? `Finalizar (${selected.size})` : 'Selecione fotos'}
+          {sending ? 'Finalizando...' : selected.size ? `Finalizar (${selected.size})` : 'Selecione fotos'}
         </button>
       </div>
 
       <div style={{ maxWidth:1200, margin:'0 auto', padding:'16px 20px' }}>
-        <div style={{ background:'rgba(232,119,34,.06)', border:'1px solid rgba(232,119,34,.15)', borderRadius:12, padding:'12px 16px', marginBottom:20, display:'flex', alignItems:'center', gap:10, fontSize:13, color:'#ccc' }}>
-          <Camera size={16} color={OR}/>
-          <span>Clique nas fotos que deseja selecionar. Quando terminar, clique em <strong style={{ color:OR }}>Finalizar</strong>.</span>
+
+        {/* Painel de instruções */}
+        <div style={dark({ padding:20, marginBottom:16 })}>
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:14 }}>
+            <Info size={15} color={OR}/>
+            <span style={{ color:'#fff', fontWeight:700, fontSize:14 }}>Como funciona</span>
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fit, minmax(160px, 1fr))', gap:10, marginBottom:16 }}>
+            <div style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:'12px 14px' }}>
+              <div style={{ color:'#555', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Total na galeria</div>
+              <div style={{ color:'#fff', fontSize:22, fontWeight:800 }}>{gallery.totalPhotos}</div>
+              <div style={{ color:'#555', fontSize:12, marginTop:2 }}>fotos disponíveis</div>
+            </div>
+            {downloadLimit !== null ? (
+              <div style={{ background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.15)', borderRadius:10, padding:'12px 14px' }}>
+                <div style={{ color:'#555', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Seu pacote inclui</div>
+                <div style={{ color:'#22C55E', fontSize:22, fontWeight:800 }}>{downloadLimit}</div>
+                <div style={{ color:'#555', fontSize:12, marginTop:2 }}>fotos para download</div>
+              </div>
+            ) : (
+              <div style={{ background:'rgba(34,197,94,.06)', border:'1px solid rgba(34,197,94,.15)', borderRadius:10, padding:'12px 14px' }}>
+                <div style={{ color:'#555', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Download</div>
+                <div style={{ color:'#22C55E', fontSize:22, fontWeight:800 }}>Ilimitado</div>
+                <div style={{ color:'#555', fontSize:12, marginTop:2 }}>baixe todas as fotos</div>
+              </div>
+            )}
+            <div style={{ background: downloadBloqueado ? 'rgba(232,119,34,.08)' : 'rgba(255,255,255,.04)', border: downloadBloqueado ? '1px solid rgba(232,119,34,.2)' : 'none', borderRadius:10, padding:'12px 14px' }}>
+              <div style={{ color:'#555', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Selecionadas</div>
+              <div style={{ color: downloadBloqueado ? OR : '#fff', fontSize:22, fontWeight:800 }}>{selected.size}</div>
+              <div style={{ color:'#555', fontSize:12, marginTop:2 }}>
+                {downloadLimit !== null
+                  ? downloadBloqueado
+                    ? `${extraPhotos} acima do limite`
+                    : `${downloadLimit - selected.size} restante${(downloadLimit - selected.size) !== 1 ? 's' : ''}`
+                  : 'fotos marcadas'
+                }
+              </div>
+            </div>
+            {downloadLimit !== null && extraPhotoPrice > 0 && (
+              <div style={{ background:'rgba(255,255,255,.04)', borderRadius:10, padding:'12px 14px' }}>
+                <div style={{ color:'#555', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, marginBottom:4 }}>Foto extra</div>
+                <div style={{ color:'#fff', fontSize:22, fontWeight:800 }}>R${extraPhotoPrice.toFixed(2)}</div>
+                <div style={{ color:'#555', fontSize:12, marginTop:2 }}>por foto adicional</div>
+              </div>
+            )}
+          </div>
+          <div style={{ paddingTop:14, borderTop:'1px solid rgba(255,255,255,.06)', display:'flex', flexWrap:'wrap', gap:14 }}>
+            {[
+              { n:'1', t:'Clique nas fotos que deseja receber' },
+              { n:'2', t: downloadLimit !== null ? `Selecione até ${downloadLimit} foto${downloadLimit !== 1 ? 's' : ''} do pacote` : 'Selecione quantas quiser' },
+              { n:'3', t:'Clique em Finalizar e envie a confirmação pelo WhatsApp' },
+            ].map(({ n, t }) => (
+              <div key={n} style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, color:'#777' }}>
+                <div style={{ width:22, height:22, borderRadius:'50%', background:'rgba(232,119,34,.12)', border:'1px solid rgba(232,119,34,.25)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:800, color:OR, flexShrink:0 }}>{n}</div>
+                {t}
+              </div>
+            ))}
+          </div>
         </div>
 
-        {/* Aviso de fotos extras */}
-        {downloadLimit !== null && extraPhotos > 0 && (
-          <div style={{ background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.25)', borderRadius:12, padding:'14px 16px', marginBottom:20, fontSize:13 }}>
-            <div style={{ color:OR, fontWeight:700, marginBottom:6 }}>
-              Voce selecionou {extraPhotos} foto(s) alem do seu pacote
+        {/* Aviso de excedente */}
+        {downloadBloqueado && (
+          <div style={{ background:'rgba(232,119,34,.08)', border:'1px solid rgba(232,119,34,.3)', borderRadius:12, padding:'14px 16px', marginBottom:16, fontSize:13 }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8, color:OR, fontWeight:700, marginBottom:8 }}>
+              <AlertCircle size={15}/>
+              Download bloqueado — você selecionou {extraPhotos} foto{extraPhotos > 1 ? 's' : ''} acima do limite
             </div>
-            <div style={{ color:'#aaa', lineHeight:1.7 }}>
-              Pacote inclui: <strong style={{ color:'#fff' }}>{downloadLimit} fotos</strong><br/>
-              Fotos extras: <strong style={{ color:OR }}>{extraPhotos} x R${extraPhotoPrice.toFixed(2)} = R${extraTotal.toFixed(2)}</strong><br/>
-              Para baixar todas as fotos, sera necessario o pagamento adicional.
+            <div style={{ color:'#aaa', lineHeight:1.8 }}>
+              Pacote inclui <strong style={{ color:'#fff' }}>{downloadLimit}</strong> foto{downloadLimit !== 1 ? 's' : ''} · Você selecionou <strong style={{ color:'#fff' }}>{selected.size}</strong>
+              {extraPhotoPrice > 0 && <> · Excedente: <strong style={{ color:OR }}>R${extraTotal.toFixed(2)}</strong></>}
             </div>
-            {extraPhotoPrice > 0 && (
-              <button onClick={() => setPayModal(true)}
-                style={{ marginTop:12, display:'inline-flex', alignItems:'center', gap:8, padding:'10px 20px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-                <ShoppingCart size={15}/> Pagar R${extraTotal.toFixed(2)} e baixar todas
-              </button>
-            )}
+            <div style={{ marginTop:12, display:'flex', flexWrap:'wrap', gap:10, alignItems:'center' }}>
+              {extraPhotoPrice > 0 && (
+                <button onClick={() => setPayModal(true)}
+                  style={{ display:'inline-flex', alignItems:'center', gap:8, padding:'9px 18px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+                  <ShoppingCart size={14}/> Pagar R${extraTotal.toFixed(2)} e liberar
+                </button>
+              )}
+              <span style={{ fontSize:12, color:'#666' }}>ou desmarque {extraPhotos} foto{extraPhotos > 1 ? 's' : ''} para voltar ao limite</span>
+            </div>
           </div>
         )}
 
+        {/* Grid de fotos */}
         {!photos.length ? (
           <div style={{ textAlign:'center', padding:'60px 24px', color:'#444' }}>
-            <Camera size={40} style={{ marginBottom:12 }}/><div>Nenhuma foto disponivel</div>
+            <Camera size={40} style={{ marginBottom:12 }}/><div>Nenhuma foto disponível</div>
           </div>
         ) : (
           <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(200px,1fr))', gap:10 }}>
@@ -236,9 +320,12 @@ export default function GaleriaCliente() {
                       Ver
                     </button>
                     {gallery?.downloadEnabled && (
-                      <button onClick={e => { e.stopPropagation(); downloadPhoto(p); }} disabled={isDown}
-                        style={{ background:'rgba(59,130,246,.8)', border:'none', borderRadius:7, padding:'4px 7px', cursor:'pointer', color:'#fff', fontSize:10, display:'flex', alignItems:'center', gap:3, fontFamily:'inherit', opacity:isDown?.6:1 }}>
-                        {isDown ? <Loader size={10} style={{ animation:'spin 1s linear infinite' }}/> : <Download size={10}/>}
+                      <button
+                        onClick={e => { e.stopPropagation(); downloadPhoto(p); }}
+                        disabled={isDown}
+                        title={downloadBloqueado ? 'Download bloqueado — excedeu o limite do pacote' : 'Baixar foto'}
+                        style={{ background: downloadBloqueado ? 'rgba(232,119,34,.7)' : 'rgba(59,130,246,.8)', border:'none', borderRadius:7, padding:'4px 7px', cursor: downloadBloqueado ? 'not-allowed' : 'pointer', color:'#fff', fontSize:10, display:'flex', alignItems:'center', gap:3, fontFamily:'inherit', opacity:isDown ? .6 : 1 }}>
+                        {isDown ? <Loader size={10} style={{ animation:'spin 1s linear infinite' }}/> : downloadBloqueado ? <AlertCircle size={10}/> : <Download size={10}/>}
                       </button>
                     )}
                   </div>
@@ -264,8 +351,11 @@ export default function GaleriaCliente() {
             <span style={{ color:'#888', fontSize:12 }}>{lightbox.filename}</span>
             {gallery?.downloadEnabled && (
               <button onClick={e => { e.stopPropagation(); downloadPhoto(lightbox); }}
-                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:9, background:'rgba(59,130,246,.8)', border:'none', color:'#fff', fontSize:13, cursor:'pointer', fontFamily:'inherit', fontWeight:700 }}>
-                <Download size={14}/> Baixar
+                disabled={downloadBloqueado}
+                title={downloadBloqueado ? 'Download bloqueado — excedeu o limite' : 'Baixar foto'}
+                style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:9, background: downloadBloqueado ? 'rgba(232,119,34,.7)' : 'rgba(59,130,246,.8)', border:'none', color:'#fff', fontSize:13, cursor: downloadBloqueado ? 'not-allowed' : 'pointer', fontFamily:'inherit', fontWeight:700 }}>
+                {downloadBloqueado ? <AlertCircle size={14}/> : <Download size={14}/>}
+                {downloadBloqueado ? 'Bloqueado' : 'Baixar'}
               </button>
             )}
           </div>
@@ -283,10 +373,10 @@ export default function GaleriaCliente() {
             </div>
             <div style={{ background:'rgba(255,255,255,.04)', borderRadius:12, padding:16, marginBottom:20 }}>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, color:'#888', fontSize:13 }}>
-                <span>Fotos incluidas no pacote</span><span style={{ color:'#22C55E' }}>{downloadLimit}</span>
+                <span>Incluídas no pacote</span><span style={{ color:'#22C55E' }}>{downloadLimit}</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, color:'#888', fontSize:13 }}>
-                <span>Fotos selecionadas</span><span style={{ color:'#fff' }}>{selected.size}</span>
+                <span>Selecionadas</span><span style={{ color:'#fff' }}>{selected.size}</span>
               </div>
               <div style={{ display:'flex', justifyContent:'space-between', marginBottom:8, color:'#888', fontSize:13 }}>
                 <span>Fotos extras</span><span style={{ color:OR }}>{extraPhotos}</span>
@@ -295,16 +385,26 @@ export default function GaleriaCliente() {
                 <span>Valor por foto extra</span><span style={{ color:'#fff' }}>R${extraPhotoPrice.toFixed(2)}</span>
               </div>
               <div style={{ borderTop:'1px solid rgba(255,255,255,.08)', marginTop:12, paddingTop:12, display:'flex', justifyContent:'space-between', fontSize:16, fontWeight:700 }}>
-                <span style={{ color:'#fff' }}>Total a pagar</span>
+                <span style={{ color:'#fff' }}>Total</span>
                 <span style={{ color:OR }}>R${extraTotal.toFixed(2)}</span>
               </div>
             </div>
             <p style={{ color:'#555', fontSize:12, textAlign:'center', marginBottom:16 }}>
-              Entre em contato com o fotografo para realizar o pagamento e liberar o download das fotos extras.
+              Entre em contato com o fotógrafo para realizar o pagamento e liberar o download das fotos extras.
             </p>
+            {gallery?.photographerPhone && (
+              <button
+                onClick={() => {
+                  const msg = `Olá! Gostaria de pagar pelas ${extraPhotos} foto(s) extra(s) da galeria *${gallery.title}*. Total: R$${extraTotal.toFixed(2)}.`;
+                  window.open(`https://wa.me/55${gallery.photographerPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+                }}
+                style={{ width:'100%', padding:'12px', borderRadius:10, background:'#25D366', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginBottom:10 }}>
+                <MessageCircle size={16}/> Falar com o fotógrafo
+              </button>
+            )}
             <button onClick={() => setPayModal(false)}
-              style={{ width:'100%', padding:'12px', borderRadius:10, background:`linear-gradient(135deg,${OR},#C85A00)`, color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
-              Entendido
+              style={{ width:'100%', padding:'12px', borderRadius:10, background:'rgba(255,255,255,.06)', color:'#aaa', border:'1px solid rgba(255,255,255,.08)', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              Fechar
             </button>
           </div>
         </div>
