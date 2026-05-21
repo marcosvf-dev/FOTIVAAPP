@@ -5,7 +5,7 @@ const User    = require('../models/User');
 const { Client, Event } = require('../models/models');
 const { auth, requireAdmin } = require('../middleware/auth');
 
-const sign = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: '1d' });
+const sign = (user) => jwt.sign({ id: user._id, tokenVersion: user.tokenVersion ?? 0 }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
 // Login do admin (email/senha separados)
 router.post('/login', async (req, res) => {
@@ -17,7 +17,7 @@ router.post('/login', async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.passwordHash)))
     return res.status(401).json({ error: 'Credenciais inválidas' });
 
-  res.json({ token: sign(user._id), isAdmin: true });
+  res.json({ token: sign(user), isAdmin: true });
 });
 
 // Criar conta admin (rode uma vez para criar o admin)
