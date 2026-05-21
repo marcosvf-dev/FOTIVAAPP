@@ -326,7 +326,7 @@ export default function Eventos() {
                     <div style={{ height:'100%', width:`${(s.step/7)*100}%`, background:`linear-gradient(90deg,#E87722,${s.color})`, transition:'width .4s ease' }}/>
                   </div>
                 )}
-                <div style={{ padding:'10px 14px', cursor:'pointer' }} onClick={() => !ev.archived && navigate(`/eventos/editar/${ev._id}`)}>
+                <div style={{ padding:'10px 14px', cursor:'pointer' }} onClick={() => !ev.archived && navigate(`/eventos/${ev._id}`)}>
                   <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
                     <div style={{ width:38, height:38, background: ev.archived ? 'rgba(255,255,255,.04)' : 'rgba(232,119,34,0.1)', border:`1px solid ${ev.archived ? 'rgba(255,255,255,.08)' : 'rgba(232,119,34,0.2)'}`, borderRadius:12, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       {ev.archived ? (
