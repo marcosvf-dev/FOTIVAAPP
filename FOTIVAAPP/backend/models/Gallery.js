@@ -5,10 +5,13 @@ const photoSchema = new mongoose.Schema({
   filename:     { type: String, default: '' },
   b2FileId:     { type: String, default: '' },
   b2FileName:   { type: String, default: '' },
+  b2OriginalKey:{ type: String, default: '' },
   thumbnailUrl: { type: String, default: '' },
   url:          { type: String, default: '' },
   selected:     { type: Boolean, default: false },
   size:         { type: Number, default: 0 },
+  width:        { type: Number, default: 0 },
+  height:       { type: Number, default: 0 },
   uploadedAt:   { type: Date, default: Date.now },
 }, { _id: false });
 
