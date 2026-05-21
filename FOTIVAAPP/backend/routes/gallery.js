@@ -127,11 +127,12 @@ router.post('/photographer/:id/upload',
           ? await uploadPhotoWithWatermark(file.buffer, file.mimetype, path, gallery.watermarkText)
           : await uploadPhoto(file.buffer, file.mimetype, path);
 
-        const { fullKey, thumbKey, width, height, size } = result;
+        const { fullKey, thumbKey, originalKey, width, height, size } = result;
 
         gallery.photos.push({
           id: photoId, filename: file.originalname,
           b2FileId: photoId, b2FileName: fullKey,
+          b2OriginalKey: originalKey,
           size, width, height, selected: false,
         });
         uploaded.push({ id: photoId, filename: file.originalname });
@@ -367,8 +368,9 @@ router.post('/client/:id/download/:photoId', async (req, res) => {
   const photo = gallery.photos.find(p => p.id === req.params.photoId);
   if (!photo) return res.status(404).json({ error: 'Foto não encontrada' });
 
-  // URL assinada de alta resolução válida por 5 minutos para download
-  const url = await getSignedPhotoUrl(photo.b2FileName, 300);
+  // URL assinada do original (qualidade total) válida por 5 minutos para download
+  const downloadKey = photo.b2OriginalKey || photo.b2FileName;
+  const url = await getSignedPhotoUrl(downloadKey, 300);
   res.json({ ok: true, url, filename: photo.filename });
 });
 
