@@ -92,8 +92,8 @@ export default function AdminPanel() {
       const { data } = await api.get(
         `/api/admin/users?page=${page}&limit=15&status=${filter}&search=${search}`, ah()
       );
-      setUsers(data.users); setTotal(data.total); setPages(data.pages);
-    } catch {}
+      setUsers(data.users || []); setTotal(data.total || 0); setPages(data.pages || 1);
+    } catch { setUsers([]); }
     setULoading(false);
   }, [token, page, filter, search]);
 
