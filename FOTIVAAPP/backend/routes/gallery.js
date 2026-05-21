@@ -1,4 +1,4 @@
-// v2
+// v2 - rotas cliente
 const router     = require('express').Router();
 const multer     = require('multer');
 const { v4: uuid } = require('uuid');
