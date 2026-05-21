@@ -41,7 +41,7 @@ export default function Galerias() {
   const [sending,   setSending]   = useState(false);
   const fileRef = useRef();
   const [editModal,  setEditModal]  = useState(false);
-  const [editForm,   setEditForm]   = useState({ clientEmail:'', password:'' });
+  const [editForm,   setEditForm]   = useState({ clientEmail:'', password:'', currentPassword:'' });
   const [form, setForm] = useState({
     title:'', description:'', clientName:'', clientEmail:'', password:'',
     downloadEnabled: false, downloadLimit: '', extraPhotoPrice: '',
@@ -163,13 +163,14 @@ export default function Galerias() {
     if (!numero) return toast.error('Numero invalido');
     const link  = `${window.location.origin}/galeria/${current._id}`;
     const email = current.clientEmail;
+    const senha = editForm.currentPassword || '(a senha definida no cadastro)';
     const msg   = `Ola! Suas fotos estao prontas para selecao! 📸
 
 Acesse sua galeria pelo link abaixo:
 ${link}
 
 *Email de acesso:* ${email}
-*Senha:* (a senha que foi combinada)
+*Senha:* ${senha}
 
 Qualquer duvida e so falar! 😊`;
     window.open(`https://wa.me/55${numero}?text=${encodeURIComponent(msg)}`, '_blank');
@@ -221,7 +222,7 @@ Qualquer duvida e so falar! 😊`;
                 style={btnStyle({ background:'rgba(232,119,34,.1)', border:'1px solid rgba(232,119,34,.2)', color:OR })}>
                 <Link2 size={14}/> Copiar link
               </button>
-              <button onClick={() => { setEditForm({ clientEmail: current.clientEmail || '', password: '' }); setEditModal(true); }}
+              <button onClick={() => { setEditForm({ clientEmail: current.clientEmail || '', password: '', currentPassword: editForm.currentPassword || '' }); setEditModal(true); }}
                 title="Alterar email e senha do cliente"
                 style={btnStyle({ background:'rgba(59,130,246,.1)', border:'1px solid rgba(59,130,246,.25)', color:'#3B82F6' })}>
                 Editar acesso
@@ -375,8 +376,15 @@ Qualquer duvida e so falar! 😊`;
                     style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit' }}/>
                 </div>
                 <div>
+                  <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Senha atual</label>
+                  <input type="text" value={editForm.currentPassword}
+                    onChange={e => setEditForm(f => ({...f, currentPassword: e.target.value}))}
+                    placeholder="Digite a senha atual para ver/confirmar"
+                    style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit' }}/>
+                </div>
+                <div>
                   <label style={{ color:'#888', fontSize:11, fontWeight:700, textTransform:'uppercase', letterSpacing:.5, display:'block', marginBottom:6 }}>Nova senha (deixe vazio para manter a atual)</label>
-                  <input type="password" value={editForm.password} onChange={e => setEditForm(f => ({...f, password: e.target.value}))}
+                  <input type="text" value={editForm.password} onChange={e => setEditForm(f => ({...f, password: e.target.value}))}
                     placeholder="Nova senha..."
                     style={{ width:'100%', background:'#1a1a22', border:'1px solid rgba(255,255,255,.08)', borderRadius:9, padding:'10px 14px', color:'#fff', fontSize:14, outline:'none', fontFamily:'inherit' }}/>
                   <div style={{ color:'#444', fontSize:11, marginTop:4 }}>Se nao preenchida, a senha atual sera mantida</div>
