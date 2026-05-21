@@ -120,7 +120,7 @@ export default function App() {
             <Route path="/register"           element={<Register />} />
             <Route path="/reset-password"     element={<ResetPassword />} />
             <Route path="/termos"             element={<TermosPrivacidade />} />
-            <Route path="/galeria/:token"     element={<GaleriaCliente />} />
+            <Route path="/galeria/:id"        element={<GaleriaCliente />} />
             <Route path="/pagamento/retorno"  element={<PagamentoRetorno />} />
             <Route path="/assinatura"         element={<Private requireSub={false}><Assinatura /></Private>} />
             <Route path="/admin"              element={<Private requireSub={false}><Admin /></Private>} />
