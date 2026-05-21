@@ -5,6 +5,7 @@ const photoSchema = new mongoose.Schema({
   filename:     { type: String, default: '' },
   b2FileId:     { type: String, default: '' },
   b2FileName:   { type: String, default: '' },
+  b2ThumbKey:   { type: String, default: '' },
   b2OriginalKey:{ type: String, default: '' },
   thumbnailUrl: { type: String, default: '' },
   url:          { type: String, default: '' },
