@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
-import { Check, Image, Lock, Send, Loader, Camera, X, Download, ShoppingCart, Info, AlertCircle, MessageCircle } from 'lucide-react';
+import { Check, Image, Lock, Send, Loader, Camera, X, Download, ShoppingCart, Info, AlertCircle, MessageCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const BACKEND = process.env.REACT_APP_BACKEND_URL || '';
 const OR = '#E87722';
@@ -20,7 +20,7 @@ export default function GaleriaCliente() {
   const [photos,      setPhotos]      = useState([]);
   const [selected,    setSelected]    = useState(new Set());
   const [sending,     setSending]     = useState(false);
-  const [lightbox,    setLightbox]    = useState(null);
+  const [lightboxIdx, setLightboxIdx] = useState(null);
   const [downloading, setDownloading] = useState(null);
   const [payModal,    setPayModal]    = useState(false);
   const [finishData,  setFinishData]  = useState(null);
@@ -109,6 +109,7 @@ export default function GaleriaCliente() {
     setDownloading(null);
   }
 
+  const lightbox = lightboxIdx !== null ? photos[lightboxIdx] : null;
   const downloadLimit      = gallery?.downloadLimit ?? null;
   const extraPhotoPrice    = gallery?.extraPhotoPrice || 0;
   const selectedArr        = Array.from(selected);
@@ -331,7 +332,7 @@ export default function GaleriaCliente() {
                     {isSel && <Check size={13} color="#fff"/>}
                   </div>
                   <div style={{ position:'absolute', bottom:8, right:8, display:'flex', gap:5 }}>
-                    <button onClick={e => { e.stopPropagation(); setLightbox(p); }}
+                    <button onClick={e => { e.stopPropagation(); setLightboxIdx(photos.indexOf(p)); }}
                       style={{ background:'rgba(0,0,0,.7)', border:'none', borderRadius:7, padding:'4px 7px', cursor:'pointer', color:'#fff', fontSize:10, display:'flex', alignItems:'center', gap:3, fontFamily:'inherit' }}>
                       Ver
                     </button>
@@ -355,8 +356,8 @@ export default function GaleriaCliente() {
       {/* Lightbox */}
       {lightbox && (
         <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.95)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
-          onClick={() => setLightbox(null)}>
-          <button onClick={() => setLightbox(null)}
+          onClick={() => setLightboxIdx(null)}>
+          <button onClick={() => setLightboxIdx(null)}
             style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,.1)', border:'none', borderRadius:'50%', width:40, height:40, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <X size={20}/>
           </button>
