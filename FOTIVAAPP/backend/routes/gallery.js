@@ -236,6 +236,7 @@ router.post('/client/login', async (req, res) => {
       expiresAt:       gallery.expiresAt,
       photographerPhone: phone,
       photographerName:  gallery.userId?.studioName || gallery.userId?.name || '',
+      downloadCount:   gallery.photos.filter(p => p.downloaded === true).length,
     },
     photos,
   });
@@ -310,9 +311,26 @@ router.post('/client/:id/download/:photoId', async (req, res) => {
   const photo = gallery.photos.find(p => p.id === req.params.photoId);
   if (!photo) return res.status(404).json({ error: 'Foto não encontrada' });
 
+  // Conta pelos campos downloaded nas fotos — funciona em galerias antigas e novas
+  if (!photo.downloaded) {
+    const limit = gallery.downloadLimit;
+    const count = gallery.photos.filter(p => p.downloaded === true).length;
+    if (limit !== null && count >= limit) {
+      return res.status(403).json({
+        error: `Limite de ${limit} download(s) atingido. Entre em contato com o fotógrafo para adquirir fotos extras.`,
+        limitReached: true,
+        downloadLimit: limit,
+        downloadCount: count,
+      });
+    }
+    photo.downloaded = true;
+    gallery.downloadCount = count + 1;
+    await gallery.save();
+  }
+
   const downloadKey = photo.b2OriginalKey || photo.b2FileName;
   const url = await getSignedPhotoUrl(downloadKey, 300, photo.filename);
-  res.json({ ok: true, url, filename: photo.filename });
+  res.json({ ok: true, url, filename: photo.filename, downloadCount: gallery.downloadCount, downloadLimit: gallery.downloadLimit });
 });
 
 module.exports = router;
