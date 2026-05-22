@@ -94,7 +94,7 @@ export default function GaleriaCliente() {
       );
       const a = document.createElement('a');
       a.href = data.url; a.download = data.filename || photo.filename;
-      a.target = '_blank'; a.click();
+      a.click();
     } catch (e) {
       alert(e.response?.data?.error || 'Erro ao baixar foto');
     }
