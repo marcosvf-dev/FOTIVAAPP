@@ -311,7 +311,7 @@ router.post('/client/:id/download/:photoId', async (req, res) => {
   if (!photo) return res.status(404).json({ error: 'Foto não encontrada' });
 
   const downloadKey = photo.b2OriginalKey || photo.b2FileName;
-  const url = await getSignedPhotoUrl(downloadKey, 300);
+  const url = await getSignedPhotoUrl(downloadKey, 300, photo.filename);
   res.json({ ok: true, url, filename: photo.filename });
 });
 
