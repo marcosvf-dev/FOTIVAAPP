@@ -355,27 +355,40 @@ export default function GaleriaCliente() {
 
       {/* Lightbox */}
       {lightbox && (
-        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.95)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
+        <div style={{ position:'fixed', inset:0, background:'rgba(0,0,0,.95)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', padding:'20px 80px' }}
           onClick={() => setLightboxIdx(null)}>
           <button onClick={() => setLightboxIdx(null)}
-            style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,.1)', border:'none', borderRadius:'50%', width:40, height:40, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,.1)', border:'none', borderRadius:'50%', width:40, height:40, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10 }}>
             <X size={20}/>
           </button>
+          {lightboxIdx > 0 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(lightboxIdx - 1); }}
+              style={{ position:'absolute', left:16, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,.15)', border:'none', borderRadius:'50%', width:48, height:48, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10 }}>
+              <ChevronLeft size={26}/>
+            </button>
+          )}
+          {lightboxIdx < photos.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); setLightboxIdx(lightboxIdx + 1); }}
+              style={{ position:'absolute', right:16, top:'50%', transform:'translateY(-50%)', background:'rgba(255,255,255,.15)', border:'none', borderRadius:'50%', width:48, height:48, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center', zIndex:10 }}>
+              <ChevronRight size={26}/>
+            </button>
+          )}
           <div style={{ position:'relative', display:'inline-block' }} onClick={e => e.stopPropagation()}>
             <img src={lightbox.url || lightbox.thumbnailUrl} alt={lightbox.filename}
-              style={{ maxWidth:'100%', maxHeight:'90vh', borderRadius:12, objectFit:'contain', display:'block' }}/>
+              style={{ maxWidth:'100%', maxHeight:'80vh', borderRadius:12, objectFit:'contain', display:'block' }}/>
             {watermarkEnabled && (
               <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
                 <img src={WATERMARK_URL} alt="watermark" style={{ width:'50%', opacity:.45, userSelect:'none', pointerEvents:'none' }}/>
               </div>
             )}
           </div>
-          <div style={{ position:'absolute', bottom:20, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:12 }}>
+          <div style={{ position:'absolute', bottom:20, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:12, whiteSpace:'nowrap' }}>
+            <span style={{ color:'#555', fontSize:11 }}>{lightboxIdx + 1} / {photos.length}</span>
             <span style={{ color:'#888', fontSize:12 }}>{lightbox.filename}</span>
             {gallery?.downloadEnabled && (
               <button onClick={e => { e.stopPropagation(); downloadPhoto(lightbox); }}
                 disabled={downloadBloqueado}
-                title={downloadBloqueado ? 'Download bloqueado — excedeu o limite' : 'Baixar foto'}
+                title={downloadBloqueado ? 'Download bloqueado' : 'Baixar foto'}
                 style={{ display:'flex', alignItems:'center', gap:6, padding:'8px 16px', borderRadius:9, background: downloadBloqueado ? 'rgba(232,119,34,.7)' : 'rgba(59,130,246,.8)', border:'none', color:'#fff', fontSize:13, cursor: downloadBloqueado ? 'not-allowed' : 'pointer', fontFamily:'inherit', fontWeight:700 }}>
                 {downloadBloqueado ? <AlertCircle size={14}/> : <Download size={14}/>}
                 {downloadBloqueado ? 'Bloqueado' : 'Baixar'}
