@@ -24,6 +24,7 @@ export default function GaleriaCliente() {
   const [downloading, setDownloading] = useState(null);
   const [payModal,    setPayModal]    = useState(false);
   const [finishData,  setFinishData]  = useState(null);
+  const [downloadCount, setDownloadCount] = useState(0);
 
   async function doLogin() {
     setLoginErr(''); setLoading(true);
@@ -34,6 +35,7 @@ export default function GaleriaCliente() {
       );
       setGallery(data.gallery);
       setPhotos(data.photos);
+      setDownloadCount(data.gallery.downloadCount || 0);
       const pre = new Set(data.photos.filter(p => p.selected).map(p => p.id));
       setSelected(pre);
       setStep('gallery');
@@ -92,21 +94,30 @@ export default function GaleriaCliente() {
         { email, password },
         { timeout: 15000 }
       );
+      if (data.downloadCount !== undefined) setDownloadCount(data.downloadCount);
       const a = document.createElement('a');
       a.href = data.url; a.download = data.filename || photo.filename;
       a.click();
     } catch (e) {
-      alert(e.response?.data?.error || 'Erro ao baixar foto');
+      const err = e.response?.data;
+      if (err?.limitReached) {
+        setPayModal(true);
+      } else {
+        alert(err?.error || 'Erro ao baixar foto');
+      }
     }
     setDownloading(null);
   }
 
-  const downloadLimit     = gallery?.downloadLimit ?? null;
-  const extraPhotoPrice   = gallery?.extraPhotoPrice || 0;
-  const selectedArr       = Array.from(selected);
-  const extraPhotos       = downloadLimit !== null ? Math.max(0, selectedArr.length - downloadLimit) : 0;
-  const extraTotal        = extraPhotos * extraPhotoPrice;
-  const downloadBloqueado = downloadLimit !== null && extraPhotos > 0;
+  const downloadLimit      = gallery?.downloadLimit ?? null;
+  const extraPhotoPrice    = gallery?.extraPhotoPrice || 0;
+  const selectedArr        = Array.from(selected);
+  const extraPhotos        = downloadLimit !== null ? Math.max(0, selectedArr.length - downloadLimit) : 0;
+  const extraTotal         = extraPhotos * extraPhotoPrice;
+  const downloadsRestantes = downloadLimit !== null ? Math.max(0, downloadLimit - downloadCount) : null;
+  const downloadBloqueado  = downloadLimit !== null && downloadCount >= downloadLimit;
+  const watermarkEnabled   = gallery?.watermarkEnabled || false;
+  const WATERMARK_URL      = '/logo-watermark.png';
 
   // ── LOGIN ──
   if (step === 'login') return (
@@ -307,6 +318,11 @@ export default function GaleriaCliente() {
                         onMouseLeave={e => e.target.style.transform='scale(1)'}/>
                     : <div style={{ width:'100%', height:'100%', display:'flex', alignItems:'center', justifyContent:'center' }}><Camera size={24} color="#333"/></div>
                   }
+                  {watermarkEnabled && (
+                    <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                      <img src={WATERMARK_URL} alt="watermark" style={{ width:'70%', opacity:.45, userSelect:'none', pointerEvents:'none' }}/>
+                    </div>
+                  )}
                   {isSel && <div style={{ position:'absolute', inset:0, background:'rgba(34,197,94,.15)' }}/>}
                   <div style={{ position:'absolute', top:8, right:8, width:26, height:26, borderRadius:'50%',
                     background: isSel ? '#22C55E' : 'rgba(0,0,0,.6)',
@@ -344,9 +360,15 @@ export default function GaleriaCliente() {
             style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,.1)', border:'none', borderRadius:'50%', width:40, height:40, cursor:'pointer', color:'#fff', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <X size={20}/>
           </button>
-          <img src={lightbox.url || lightbox.thumbnailUrl} alt={lightbox.filename}
-            style={{ maxWidth:'100%', maxHeight:'90vh', borderRadius:12, objectFit:'contain' }}
-            onClick={e => e.stopPropagation()}/>
+          <div style={{ position:'relative', display:'inline-block' }} onClick={e => e.stopPropagation()}>
+            <img src={lightbox.url || lightbox.thumbnailUrl} alt={lightbox.filename}
+              style={{ maxWidth:'100%', maxHeight:'90vh', borderRadius:12, objectFit:'contain', display:'block' }}/>
+            {watermarkEnabled && (
+              <div style={{ position:'absolute', inset:0, display:'flex', alignItems:'center', justifyContent:'center', pointerEvents:'none' }}>
+                <img src={WATERMARK_URL} alt="watermark" style={{ width:'50%', opacity:.45, userSelect:'none', pointerEvents:'none' }}/>
+              </div>
+            )}
+          </div>
           <div style={{ position:'absolute', bottom:20, left:'50%', transform:'translateX(-50%)', display:'flex', alignItems:'center', gap:12 }}>
             <span style={{ color:'#888', fontSize:12 }}>{lightbox.filename}</span>
             {gallery?.downloadEnabled && (
