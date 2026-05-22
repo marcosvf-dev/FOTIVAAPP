@@ -14,7 +14,6 @@ const s3 = new S3Client({
   forcePathStyle: true,
 });
 
-// Upload sem compressão — envia original diretamente
 async function uploadPhoto(buffer, mimeType, path) {
   const buf = Buffer.from(buffer);
   const ct  = mimeType || 'image/jpeg';
@@ -29,14 +28,18 @@ async function uploadPhoto(buffer, mimeType, path) {
   return { fullKey, thumbKey, originalKey, width:null, height:null, size:buf.length };
 }
 
-// Upload com marca d'água — sem sharp, envia original
 async function uploadPhotoWithWatermark(buffer, mimeType, path, watermarkText) {
   console.log('uploadPhotoWithWatermark chamado, sharp desativado, enviando original');
   return uploadPhoto(buffer, mimeType, path);
 }
 
-async function getSignedPhotoUrl(key, expiresIn = 86400) {
-  return getSignedUrl(s3, new GetObjectCommand({ Bucket:B2_BUCKET, Key:key }), { expiresIn });
+// expiresIn em segundos. filename opcional — quando fornecido força download direto no navegador.
+async function getSignedPhotoUrl(key, expiresIn = 86400, filename = null) {
+  const params = { Bucket: B2_BUCKET, Key: key };
+  if (filename) {
+    params.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
+  }
+  return getSignedUrl(s3, new GetObjectCommand(params), { expiresIn });
 }
 
 async function deleteFile(key) {
