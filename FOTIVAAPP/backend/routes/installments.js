@@ -5,7 +5,6 @@ const { sendPushToUser } = require('./push');
 
 router.use(auth, requireActive);
 
-// Gera lista de parcelas para um evento
 function gerarParcelas(event) {
   const { totalValue, amountPaid, installments, firstDueDate, dueDay } = event;
   if (!installments || installments <= 1) return [];
@@ -16,7 +15,6 @@ function gerarParcelas(event) {
 
   let baseDate = firstDueDate ? new Date(firstDueDate) : new Date();
   if (!firstDueDate && dueDay) {
-    // Calcula próximo vencimento baseado no dueDay
     const hoje = new Date();
     baseDate = new Date(hoje.getFullYear(), hoje.getMonth(), dueDay);
     if (baseDate <= hoje) baseDate.setMonth(baseDate.getMonth() + 1);
@@ -30,7 +28,7 @@ function gerarParcelas(event) {
       number:  i + 1,
       total:   installments,
       value:   i === installments - 1
-        ? Math.round((restante - valorParcela * (installments - 1)) * 100) / 100  // última parcela ajusta arredondamento
+        ? Math.round((restante - valorParcela * (installments - 1)) * 100) / 100
         : valorParcela,
       dueDate: due,
       paid:    false,
@@ -40,7 +38,7 @@ function gerarParcelas(event) {
   return list;
 }
 
-// Listar todos os pagamentos pendentes do fotógrafo (ordenados por vencimento)
+// Listar pagamentos pendentes
 router.get('/pending', async (req, res) => {
   const events = await Event.find({ userId: req.user._id, status: { $ne: 'cancelado' } })
     .select('clientName eventType totalValue amountPaid installmentList installments dueDay');
@@ -56,14 +54,14 @@ router.get('/pending', async (req, res) => {
         due.setHours(0,0,0,0);
         const diffDays = Math.round((due - hoje) / 86400000);
         pending.push({
-          eventId:      ev._id,
-          installmentId:inst._id,
-          clientName:   ev.clientName,
-          eventType:    ev.eventType,
-          number:       inst.number,
-          total:        inst.total,
-          value:        inst.value,
-          dueDate:      inst.dueDate,
+          eventId:       ev._id,
+          installmentId: inst._id,
+          clientName:    ev.clientName,
+          eventType:     ev.eventType,
+          number:        inst.number,
+          total:         inst.total,
+          value:         inst.value,
+          dueDate:       inst.dueDate,
           diffDays,
           status: diffDays < 0 ? 'atrasado' : diffDays === 0 ? 'vence_hoje' : diffDays <= 3 ? 'vence_em_breve' : 'pendente',
         });
@@ -85,13 +83,17 @@ router.post('/:eventId/pay/:installmentId', async (req, res) => {
 
   inst.paid   = true;
   inst.paidAt = new Date();
-  event.amountPaid = (event.amountPaid || 0) + inst.value;
+
+  // CORRIGIDO: amountPaid sempre recalculado a partir de TODAS as parcelas pagas.
+  // Antes havia dois caminhos que geravam saldo errado. Agora há uma única fonte da verdade.
+  event.amountPaid = event.installmentList
+    .filter(i => i.paid)
+    .reduce((sum, i) => sum + i.value, 0);
+
   await event.save();
 
-  const totalPaid = event.installmentList.filter(i => i.paid).reduce((s,i) => s + i.value, 0) + (event.amountPaid - inst.value);
-  const saldo = event.totalValue - event.amountPaid;
-
-  res.json({ ok: true, paidAt: inst.paidAt, saldo: Math.max(0, saldo) });
+  const saldo = Math.max(0, event.totalValue - event.amountPaid);
+  res.json({ ok: true, paidAt: inst.paidAt, amountPaid: event.amountPaid, saldo });
 });
 
 // Desmarcar pagamento
@@ -102,23 +104,26 @@ router.post('/:eventId/unpay/:installmentId', async (req, res) => {
   const inst = event.installmentList.id(req.params.installmentId);
   if (!inst || !inst.paid) return res.status(400).json({ error: 'Parcela não estava paga' });
 
-  event.amountPaid = Math.max(0, (event.amountPaid || 0) - inst.value);
   inst.paid   = false;
   inst.paidAt = null;
+
+  // CORRIGIDO: recalcula a partir das parcelas pagas restantes
+  event.amountPaid = event.installmentList
+    .filter(i => i.paid)
+    .reduce((sum, i) => sum + i.value, 0);
+
   await event.save();
-  res.json({ ok: true });
+  res.json({ ok: true, amountPaid: event.amountPaid });
 });
 
-// Regenerar parcelas de um evento (quando edita)
+// Regenerar parcelas de um evento
 router.post('/:eventId/regenerate', async (req, res) => {
   const event = await Event.findOne({ _id: req.params.eventId, userId: req.user._id });
   if (!event) return res.status(404).json({ error: 'Evento não encontrado' });
 
-  // Mantém parcelas já pagas
   const paidOnes = (event.installmentList || []).filter(i => i.paid);
   const newList  = gerarParcelas(event);
 
-  // Reaplica status das pagas
   paidOnes.forEach(p => {
     if (newList[p.number - 1]) {
       newList[p.number - 1].paid   = true;
@@ -133,17 +138,15 @@ router.post('/:eventId/regenerate', async (req, res) => {
 
 // Notificação diária de vencimentos (chamada pelo cron)
 router.post('/notify-due', async (req, res) => {
-  // Segurança básica — só chamada interna
   if (req.headers['x-internal-key'] !== process.env.INTERNAL_KEY && process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'Não autorizado' });
   }
 
   const hoje = new Date();
   hoje.setHours(0,0,0,0);
-  const amanha = new Date(hoje); amanha.setDate(amanha.getDate() + 1);
-  const doisDias = new Date(hoje); doisDias.setDate(doisDias.getDate() + 2);
+  const doisDias = new Date(hoje);
+  doisDias.setDate(doisDias.getDate() + 2);
 
-  // Busca todas as parcelas que vencem hoje ou amanhã
   const events = await Event.find({
     'installmentList.paid': false,
     'installmentList.dueDate': { $gte: hoje, $lte: doisDias },
@@ -153,7 +156,8 @@ router.post('/notify-due', async (req, res) => {
   for (const ev of events) {
     for (const inst of ev.installmentList) {
       if (inst.paid) continue;
-      const due = new Date(inst.dueDate); due.setHours(0,0,0,0);
+      const due = new Date(inst.dueDate);
+      due.setHours(0,0,0,0);
       const diffDays = Math.round((due - hoje) / 86400000);
       if (diffDays < 0 || diffDays > 1) continue;
 
