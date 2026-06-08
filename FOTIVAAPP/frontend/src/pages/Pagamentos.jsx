@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Layout from '../components/Layout';
 import api from '../lib/api';
 import { toast } from 'sonner';
-import { CheckCircle, Circle, AlertCircle, Clock, RefreshCw, BarChart2, Plus, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { CheckCircle, Circle, AlertCircle, Clock, RefreshCw, BarChart2, Plus, Trash2, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 
 const OR = '#E87722';
 
@@ -111,7 +111,7 @@ function ModalDespesa({ onClose, onSaved }) {
               Cancelar
             </button>
             <button type="submit" disabled={loading}
-              style={{ flex:2, padding:'11px', borderRadius:10, background:'linear-gradient(135deg,#EF4444,#B91C1C)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading?.6:1 }}>
+              style={{ flex:2, padding:'11px', borderRadius:10, background:'linear-gradient(135deg,#EF4444,#B91C1C)', color:'#fff', border:'none', fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:loading ? .6 : 1 }}>
               {loading ? 'Salvando...' : '💾 Salvar Despesa'}
             </button>
           </div>
@@ -123,12 +123,15 @@ function ModalDespesa({ onClose, onSaved }) {
 
 export default function Pagamentos() {
   const [all,          setAll]          = useState([]);
+  const [pagas,        setPagas]        = useState([]);
   const [despesas,     setDespesas]     = useState([]);
   const [loading,      setLoading]      = useState(true);
   const [filtro,       setFiltro]       = useState('mes');
   const [aba,          setAba]          = useState('receitas');
   const [payingId,     setPayingId]     = useState(null);
+  const [unpayingId,   setUnpayingId]   = useState(null);
   const [verGrafico,   setVerGrafico]   = useState(false);
+  const [verPagas,     setVerPagas]     = useState(false);
   const [modalDespesa, setModalDespesa] = useState(false);
   const [stats,        setStats]        = useState({ total:0, atrasado:0, hoje:0, semana:0, mes:0, totalPendente:0 });
   const [statsDespesa, setStatsDespesa] = useState({ totalMes:0, totalGeral:0 });
@@ -136,15 +139,39 @@ export default function Pagamentos() {
 
   const load = useCallback(async () => {
     try {
-      const [parcRes, despRes] = await Promise.all([
+      const [parcRes, despRes, eventosRes] = await Promise.all([
         api.get('/api/installments/pending'),
         api.get('/api/expenses').catch(() => ({ data: [] })),
+        api.get('/api/events').catch(() => ({ data: [] })),
       ]);
 
       const data = parcRes.data;
       const desp = despRes.data;
+      const evs  = eventosRes.data;
       setAll(data);
       setDespesas(desp);
+
+      // Monta lista de parcelas PAGAS a partir dos eventos
+      const pagasList = [];
+      evs.forEach(ev => {
+        (ev.installmentList || []).forEach(inst => {
+          if (inst.paid) {
+            pagasList.push({
+              installmentId: inst._id,
+              eventId:       ev._id,
+              clientName:    ev.clientName,
+              eventType:     ev.eventType,
+              number:        inst.number,
+              total:         inst.total,
+              value:         inst.value,
+              paidAt:        inst.paidAt,
+              dueDate:       inst.dueDate,
+            });
+          }
+        });
+      });
+      pagasList.sort((a, b) => new Date(b.paidAt || b.dueDate) - new Date(a.paidAt || a.dueDate));
+      setPagas(pagasList);
 
       const hoje   = new Date(); hoje.setHours(0,0,0,0);
       const fimMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0);
@@ -210,6 +237,17 @@ export default function Pagamentos() {
     setPayingId(null);
   }
 
+  async function markUnpaid(item) {
+    if (!window.confirm(`Desmarcar pagamento da parcela ${item.number}/${item.total} de ${item.clientName}?`)) return;
+    setUnpayingId(item.installmentId);
+    try {
+      await api.post(`/api/installments/${item.eventId}/unpay/${item.installmentId}`);
+      toast.success(`↩️ Pagamento desmarcado — parcela ${item.number}/${item.total} de ${item.clientName}`);
+      load();
+    } catch { toast.error('Erro ao desmarcar pagamento'); }
+    setUnpayingId(null);
+  }
+
   const deletarDespesa = async (id) => {
     if (!window.confirm('Excluir esta despesa?')) return;
     try {
@@ -219,8 +257,8 @@ export default function Pagamentos() {
     } catch { toast.error('Erro ao remover'); }
   };
 
-  const maxGraf  = Math.max(...grafico.map(g => Math.max(g.receita, g.despesa)), 1);
-  const hoje     = new Date();
+  const maxGraf    = Math.max(...grafico.map(g => Math.max(g.receita, g.despesa)), 1);
+  const hoje       = new Date();
   const receitaMes = all.filter(i => {
     const d = new Date(i.dueDate);
     return d.getMonth()===hoje.getMonth() && d.getFullYear()===hoje.getFullYear();
@@ -262,12 +300,12 @@ export default function Pagamentos() {
         {/* Stats */}
         <div style={{ display:'flex', gap:10, marginBottom:16, overflowX:'auto', paddingBottom:4 }}>
           {[
-            { label:'A receber',    value:fmtMoney(stats.totalPendente),    color:OR,        filtro:'todos' },
-            { label:'Atrasadas',    value:stats.atrasado,                   color:'#EF4444', filtro:'atraso' },
-            { label:'Vence hoje',   value:stats.hoje,                       color:'#F59E0B', filtro:'hoje' },
-            { label:'Este mês',     value:stats.mes,                        color:'#22C55E', filtro:'mes' },
-            { label:'Despesas/mês', value:fmtMoney(statsDespesa.totalMes),  color:'#EF4444', filtro:null },
-            { label:'Lucro/mês',    value:fmtMoney(lucroMes),               color: lucroMes >= 0 ? '#22C55E' : '#EF4444', filtro:null },
+            { label:'A receber',    value:fmtMoney(stats.totalPendente),   color:OR,        filtro:'todos' },
+            { label:'Atrasadas',    value:stats.atrasado,                  color:'#EF4444', filtro:'atraso' },
+            { label:'Vence hoje',   value:stats.hoje,                      color:'#F59E0B', filtro:'hoje' },
+            { label:'Este mês',     value:stats.mes,                       color:'#22C55E', filtro:'mes' },
+            { label:'Despesas/mês', value:fmtMoney(statsDespesa.totalMes), color:'#EF4444', filtro:null },
+            { label:'Lucro/mês',    value:fmtMoney(lucroMes),              color: lucroMes >= 0 ? '#22C55E' : '#EF4444', filtro:null },
           ].map(s => (
             <button key={s.label} onClick={() => s.filtro && setFiltro(s.filtro)}
               style={{ background: s.filtro && filtro===s.filtro ? `${s.color}18` : '#0f0f14', border:`1px solid ${s.filtro && filtro===s.filtro ? s.color+'44' : 'rgba(255,255,255,.07)'}`, borderRadius:12, padding:'12px 14px', textAlign:'center', cursor: s.filtro ? 'pointer' : 'default', flexShrink:0, minWidth:100, fontFamily:'inherit', transition:'all .2s' }}>
@@ -322,6 +360,7 @@ export default function Pagamentos() {
                 </button>
               ))}
             </div>
+
             {loading ? (
               <div style={{ textAlign:'center', padding:'48px', color:'#555' }}>Carregando...</div>
             ) : !filtered.length ? (
@@ -335,12 +374,12 @@ export default function Pagamentos() {
             ) : (
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {filtered.map(item => {
-                  const cfg  = STATUS_CFG[item.status] || STATUS_CFG.pendente;
-                  const Icon = cfg.icon;
+                  const cfg    = STATUS_CFG[item.status] || STATUS_CFG.pendente;
+                  const Icon   = cfg.icon;
                   const paying = payingId === item.installmentId;
                   return (
                     <div key={item.installmentId}
-                      style={{ background:'#0f0f14', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, borderLeft:`3px solid ${cfg.color}`, padding:'14px 16px', opacity:paying?.6:1 }}>
+                      style={{ background:'#0f0f14', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, borderLeft:`3px solid ${cfg.color}`, padding:'14px 16px', opacity:paying ? .6 : 1 }}>
                       <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:10, marginBottom:8 }}>
                         <div>
                           <div style={{ color:'#fff', fontWeight:700, fontSize:14 }}>{item.clientName}</div>
@@ -369,6 +408,53 @@ export default function Pagamentos() {
                     </div>
                   );
                 })}
+              </div>
+            )}
+
+            {/* PARCELAS PAGAS */}
+            {pagas.length > 0 && (
+              <div style={{ marginTop:24 }}>
+                <button onClick={() => setVerPagas(v => !v)}
+                  style={{ display:'flex', alignItems:'center', gap:8, background:'none', border:'none', cursor:'pointer', padding:'10px 0', width:'100%', fontFamily:'inherit' }}>
+                  <div style={{ flex:1, height:1, background:'rgba(255,255,255,.07)' }}/>
+                  <span style={{ color:'#555', fontSize:12, fontWeight:700, whiteSpace:'nowrap' }}>
+                    {verPagas ? '▲' : '▼'} {pagas.length} parcela{pagas.length !== 1 ? 's' : ''} paga{pagas.length !== 1 ? 's' : ''}
+                  </span>
+                  <div style={{ flex:1, height:1, background:'rgba(255,255,255,.07)' }}/>
+                </button>
+
+                {verPagas && (
+                  <div style={{ display:'flex', flexDirection:'column', gap:8, marginTop:10 }}>
+                    {pagas.map(item => {
+                      const unpaying = unpayingId === item.installmentId;
+                      return (
+                        <div key={item.installmentId}
+                          style={{ background:'rgba(34,197,94,0.04)', border:'1px solid rgba(34,197,94,0.12)', borderRadius:14, borderLeft:'3px solid #22C55E', padding:'12px 16px', opacity: unpaying ? .6 : 1 }}>
+                          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
+                            <div style={{ flex:1 }}>
+                              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:2 }}>
+                                <CheckCircle size={13} color="#22C55E"/>
+                                <span style={{ color:'#ccc', fontWeight:700, fontSize:13 }}>{item.clientName}</span>
+                                <span style={{ color:'#555', fontSize:12 }}>{item.eventType}</span>
+                              </div>
+                              <div style={{ color:'#555', fontSize:11, paddingLeft:21 }}>
+                                parcela {item.number}/{item.total}
+                                {item.paidAt && ` · pago em ${fmtDate(item.paidAt)}`}
+                              </div>
+                            </div>
+                            <div style={{ display:'flex', alignItems:'center', gap:10, flexShrink:0 }}>
+                              <span style={{ fontSize:16, fontWeight:800, color:'#22C55E' }}>{fmtMoney(item.value)}</span>
+                              <button onClick={() => markUnpaid(item)} disabled={unpaying}
+                                style={{ display:'flex', alignItems:'center', gap:5, padding:'6px 12px', borderRadius:8, background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', color:'#ef4444', fontSize:11, fontWeight:700, cursor:'pointer', fontFamily:'inherit', flexShrink:0 }}>
+                                <XCircle size={12}/> {unpaying ? '...' : 'Desmarcar'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </>
@@ -428,10 +514,10 @@ export default function Pagamentos() {
           <div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12, marginBottom:16 }}>
               {[
-                { label:'Receitas pendentes (total)', value:fmtMoney(stats.totalPendente),      color:OR,        icon:'📥' },
-                { label:'Despesas registradas (total)', value:fmtMoney(statsDespesa.totalGeral), color:'#EF4444', icon:'📤' },
-                { label:'Receitas este mês',            value:fmtMoney(receitaMes),              color:'#22C55E', icon:'📅' },
-                { label:'Despesas este mês',            value:fmtMoney(statsDespesa.totalMes),   color:'#EF4444', icon:'📅' },
+                { label:'Receitas pendentes (total)',   value:fmtMoney(stats.totalPendente),      color:OR,        icon:'📥' },
+                { label:'Despesas registradas (total)', value:fmtMoney(statsDespesa.totalGeral),  color:'#EF4444', icon:'📤' },
+                { label:'Receitas este mês',            value:fmtMoney(receitaMes),               color:'#22C55E', icon:'📅' },
+                { label:'Despesas este mês',            value:fmtMoney(statsDespesa.totalMes),    color:'#EF4444', icon:'📅' },
               ].map(item => (
                 <div key={item.label} style={{ background:'#0f0f14', border:'1px solid rgba(255,255,255,.07)', borderRadius:14, padding:'18px 16px' }}>
                   <div style={{ fontSize:20, marginBottom:6 }}>{item.icon}</div>
