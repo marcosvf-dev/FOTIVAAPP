@@ -10,7 +10,7 @@ const photoSchema = new mongoose.Schema({
   thumbnailUrl: { type: String, default: '' },
   url:          { type: String, default: '' },
   selected:     { type: Boolean, default: false },
-  downloaded:   { type: Boolean, default: false }, // marca se esta foto já foi baixada
+  downloaded:   { type: Boolean, default: false },
   size:         { type: Number, default: 0 },
   width:        { type: Number, default: 0 },
   height:       { type: Number, default: 0 },
@@ -24,7 +24,7 @@ const gallerySchema = new mongoose.Schema({
   clientName:       { type: String, required: true },
   clientEmail:      { type: String, required: true },
   password:         { type: String, required: true },
-  passwordPlain:    { type: String, default: '' },
+  // passwordPlain REMOVIDO — nunca armazenar senha em texto plano (segurança)
 
   status:           { type: String, enum: ['active','closed'], default: 'active' },
 
@@ -35,7 +35,7 @@ const gallerySchema = new mongoose.Schema({
   watermarkEnabled: { type: Boolean, default: false },
   watermarkText:    { type: String, default: '' },
 
-  downloadCount:    { type: Number, default: 0 }, // total de fotos já baixadas pelo cliente
+  downloadCount:    { type: Number, default: 0 },
 
   photos:           { type: [photoSchema], default: [] },
 
