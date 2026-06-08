@@ -20,10 +20,13 @@ router.post('/login', async (req, res) => {
   res.json({ token: sign(user), isAdmin: true });
 });
 
-// Criar conta admin (rode uma vez para criar o admin)
+// Criar conta admin (rode UMA VEZ para criar o admin inicial)
 router.post('/setup', async (req, res) => {
   const { secret, email, password, name } = req.body;
-  if (secret !== process.env.JWT_SECRET)
+  // SEGURANÇA: usa ADMIN_SECRET separado — JWT_SECRET é exclusivo para tokens de usuários
+  const adminSecret = process.env.ADMIN_SECRET;
+  if (!adminSecret) return res.status(500).json({ error: 'ADMIN_SECRET não configurado no servidor' });
+  if (secret !== adminSecret)
     return res.status(403).json({ error: 'Secret inválido' });
 
   const exists = await User.findOne({ isAdmin: true });
@@ -63,16 +66,8 @@ router.get('/stats', auth, requireAdmin, async (req, res) => {
   const mrr = (starterPlan * 19.90) + (normalPlan * 39.90) + (proPlan * 69.90);
 
   res.json({
-    totalUsers,
-    activeUsers,
-    trialUsers,
-    expiredUsers,
-    newUsersMonth,
-    normalPlan,
-    proPlan,
-    starterPlan,
-    normalPlan,
-    proPlan,
+    totalUsers, activeUsers, trialUsers, expiredUsers, newUsersMonth,
+    starterPlan, normalPlan, proPlan,
     mrr: mrr.toFixed(2),
     arr: (mrr * 12).toFixed(2),
   });
@@ -85,9 +80,9 @@ router.get('/users', auth, requireAdmin, async (req, res) => {
 
   if (status && status !== 'all') filter['subscription.status'] = status;
   if (search) filter.$or = [
-    { name:      { $regex: search, $options: 'i' } },
-    { email:     { $regex: search, $options: 'i' } },
-    { studioName:{ $regex: search, $options: 'i' } },
+    { name:       { $regex: search, $options: 'i' } },
+    { email:      { $regex: search, $options: 'i' } },
+    { studioName: { $regex: search, $options: 'i' } },
   ];
 
   const [users, total] = await Promise.all([
@@ -115,7 +110,7 @@ router.get('/users/:id', auth, requireAdmin, async (req, res) => {
   res.json({ ...user.toObject(), _counts: { clients, events } });
 });
 
-// Alterar plano manualmente (ex: dar acesso grátis)
+// Alterar plano manualmente
 router.patch('/users/:id/plan', auth, requireAdmin, async (req, res) => {
   const { plan, status, days } = req.body;
   const expiresAt = new Date();
@@ -134,9 +129,9 @@ router.patch('/users/:id/plan', auth, requireAdmin, async (req, res) => {
   res.json({ message: 'Plano atualizado', subscription: user.subscription });
 });
 
-// Bloquear / desbloquear usuário
+// Bloquear usuário
 router.patch('/users/:id/block', auth, requireAdmin, async (req, res) => {
-  const user = await User.findByIdAndUpdate(
+  await User.findByIdAndUpdate(
     req.params.id,
     { 'subscription.status': 'cancelled', 'subscription.plan': 'free' },
     { new: true }
