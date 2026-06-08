@@ -1,41 +1,50 @@
 const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand, ListObjectsV2Command } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
-const B2_ENDPOINT = process.env.B2_ENDPOINT || 's3.us-east-005.backblazeb2.com';
-const B2_BUCKET   = process.env.B2_BUCKET   || 'fotiva-galerias';
+const ENDPOINT = process.env.R2_ENDPOINT || process.env.B2_ENDPOINT || 's3.us-east-005.backblazeb2.com';
+const BUCKET   = process.env.R2_BUCKET   || process.env.B2_BUCKET   || 'fotiva-galerias';
+const REGION   = process.env.R2_REGION   || 'us-east-005';
 
 const s3 = new S3Client({
-  endpoint: `https://${B2_ENDPOINT}`,
-  region: 'us-east-005',
+  endpoint: ENDPOINT.startsWith('http') ? ENDPOINT : `https://${ENDPOINT}`,
+  region: REGION,
   credentials: {
-    accessKeyId:     process.env.B2_APPLICATION_KEY_ID,
-    secretAccessKey: process.env.B2_APPLICATION_KEY,
+    accessKeyId:     process.env.R2_ACCESS_KEY_ID     || process.env.B2_APPLICATION_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY || process.env.B2_APPLICATION_KEY,
   },
   forcePathStyle: true,
 });
 
+// CORRIGIDO: antes fazia 3 uploads do mesmo buffer. Agora faz 1 único upload.
 async function uploadPhoto(buffer, mimeType, path) {
   const buf = Buffer.from(buffer);
   const ct  = mimeType || 'image/jpeg';
-  const fullKey     = `${path}_full`;
-  const thumbKey    = `${path}_thumb`;
-  const originalKey = `${path}_original`;
-  await Promise.all([
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:fullKey,     Body:buf, ContentType:ct, ContentLength:buf.length })),
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:thumbKey,    Body:buf, ContentType:ct, ContentLength:buf.length })),
-    s3.send(new PutObjectCommand({ Bucket:B2_BUCKET, Key:originalKey, Body:buf, ContentType:ct, ContentLength:buf.length })),
-  ]);
-  return { fullKey, thumbKey, originalKey, width:null, height:null, size:buf.length };
+  const key = `${path}_original`;
+
+  await s3.send(new PutObjectCommand({
+    Bucket: BUCKET,
+    Key: key,
+    Body: buf,
+    ContentType: ct,
+    ContentLength: buf.length,
+  }));
+
+  return {
+    originalKey: key,
+    fullKey: key,   // compat com código antigo
+    thumbKey: key,  // compat com código antigo
+    width: null,
+    height: null,
+    size: buf.length,
+  };
 }
 
-// Marca d'água é aplicada no frontend via CSS — sem processamento no servidor
 async function uploadPhotoWithWatermark(buffer, mimeType, path, watermarkText) {
   return uploadPhoto(buffer, mimeType, path);
 }
 
-// expiresIn em segundos. filename opcional — quando fornecido força download direto.
 async function getSignedPhotoUrl(key, expiresIn = 86400, filename = null) {
-  const params = { Bucket: B2_BUCKET, Key: key };
+  const params = { Bucket: BUCKET, Key: key };
   if (filename) {
     params.ResponseContentDisposition = `attachment; filename="${encodeURIComponent(filename)}"`;
   }
@@ -43,14 +52,17 @@ async function getSignedPhotoUrl(key, expiresIn = 86400, filename = null) {
 }
 
 async function deleteFile(key) {
-  try { await s3.send(new DeleteObjectCommand({ Bucket:B2_BUCKET, Key:key })); } catch {}
+  try {
+    await s3.send(new DeleteObjectCommand({ Bucket: BUCKET, Key: key }));
+  } catch {}
 }
 
 async function deleteGalleryFiles(prefix) {
   try {
-    const list = await s3.send(new ListObjectsV2Command({ Bucket:B2_BUCKET, Prefix:prefix }));
-    if (list.Contents?.length)
+    const list = await s3.send(new ListObjectsV2Command({ Bucket: BUCKET, Prefix: prefix }));
+    if (list.Contents?.length) {
       await Promise.all(list.Contents.map(o => deleteFile(o.Key)));
+    }
   } catch {}
 }
 
