@@ -9,7 +9,12 @@ const helmet    = require('helmet');
 
 const app = express();
 
-app.set('trust proxy', 1); // Render fica atrás de proxy
+app.set('trust proxy', 1);
+
+// Segurança: headers HTTP seguros
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 
 const origins = process.env.CORS_ORIGINS
   ? process.env.CORS_ORIGINS.split(',').map(o => o.trim())
@@ -29,10 +34,11 @@ app.use('/api/', rateLimit({ windowMs:15*60*1000, max:100, message:{ error:'Muit
 app.use('/api/auth/login',           rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
 app.use('/api/auth/register',        rateLimit({ windowMs:15*60*1000, max:10, message:{ error:'Muitas tentativas.' }, standardHeaders:true, legacyHeaders:false }));
 app.use('/api/auth/forgot-password', rateLimit({ windowMs:60*60*1000, max:5,  message:{ error:'Muitas tentativas. Tente em 1 hora.' }, standardHeaders:true, legacyHeaders:false }));
+app.use('/api/admin',                rateLimit({ windowMs:15*60*1000, max:20, message:{ error:'Muitas tentativas no admin.' }, standardHeaders:true, legacyHeaders:false }));
 
 app.use('/api/webhook/stripe', express.raw({ type: 'application/json' }));
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 mongoose.connect(process.env.MONGO_URL, { dbName: process.env.DB_NAME || 'fotiva' })
   .then(() => console.log('✅ MongoDB conectado'))
@@ -62,9 +68,10 @@ app.use('/api/settings',     require('./routes/settings'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
 app.use('/api/backup',       require('./routes/backup'));
 
-app.get('/api/health', (_, res) => res.json({ status:'ok', version:'3.3.0', time: new Date() }));
-app.get('/api/',       (_, res) => res.json({ message:'Fotiva API v3.3' }));
+app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '3.3.0', time: new Date() }));
+app.get('/api/',       (_, res) => res.json({ message: 'Fotiva API v3.3' }));
 
+// Cron: expira assinaturas vencidas toda madrugada
 cron.schedule('0 2 * * *', async () => {
   const User = require('./models/User');
   const result = await User.updateMany(
@@ -74,6 +81,7 @@ cron.schedule('0 2 * * *', async () => {
   if (result.modifiedCount > 0) console.log(`⏰ ${result.modifiedCount} assinaturas expiradas`);
 });
 
+// Cron: limpa tokens de reset expirados
 cron.schedule('0 4 * * *', async () => {
   const User = require('./models/User');
   const result = await User.updateMany(
