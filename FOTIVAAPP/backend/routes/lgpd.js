@@ -2,7 +2,7 @@ const express  = require('express');
 const router   = express.Router();
 const mongoose = require('mongoose');
 const User     = require('../models/User');
-
+const { deleteGalleryFiles } = require('../lib/b2');
 const { AccessLog } = require('../middleware/logger');
 
 function requireAuth(req, res, next) {
@@ -55,8 +55,8 @@ router.get('/meus-dados', requireAuth, async (req, res) => {
         plano:      user?.subscription?.plan,
         cadastroEm: user?.createdAt
       },
-      clientes:  clients,
-      eventos:   events,
+      clientes:   clients,
+      eventos:    events,
       logsAcesso: logs.map(l => ({
         data:   l.timestamp,
         rota:   l.route,
@@ -106,6 +106,49 @@ router.post('/cancelar-exclusao', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * Função central de exclusão de um usuário e todos os seus dados.
+ * Usada tanto pelo cron de LGPD quanto pelo admin.
+ * Ordem: R2 → Galerias → Eventos → Clientes → Logs → Usuário
+ */
+async function excluirUsuarioCompleto(userId) {
+  const Gallery = mongoose.model('Gallery');
+
+  // 1. Apaga arquivos do R2 para cada galeria do usuário
+  const galerias = await Gallery.find({ userId }).select('_id photos').lean();
+  for (const galeria of galerias) {
+    try {
+      // Tenta deletar pelo prefixo da galeria (mais eficiente)
+      await deleteGalleryFiles(`galleries/${galeria._id}/`);
+    } catch (e) {
+      // Fallback: deleta foto por foto
+      for (const foto of (galeria.photos || [])) {
+        const keys = [foto.b2OriginalKey, foto.originalKey, foto.fullKey, foto.thumbKey]
+          .filter(Boolean)
+          .filter((v, i, arr) => arr.indexOf(v) === i); // remove duplicatas
+        for (const key of keys) {
+          try { await deleteGalleryFiles(key); } catch {}
+        }
+      }
+    }
+  }
+
+  // 2. Apaga galerias do banco
+  await Gallery.deleteMany({ userId });
+
+  // 3. Apaga eventos
+  try { await mongoose.model('Event').deleteMany({ userId }); } catch(e) {}
+
+  // 4. Apaga clientes
+  try { await mongoose.model('Client').deleteMany({ userId }); } catch(e) {}
+
+  // 5. Apaga logs de acesso
+  await AccessLog.deleteMany({ userId });
+
+  // 6. Apaga o usuário por último
+  await User.findByIdAndDelete(userId);
+}
+
 // POST /api/lgpd/executar-exclusoes — chamado pelo cron-job
 router.post('/executar-exclusoes', async (req, res) => {
   const secret = req.headers['x-cron-secret'];
@@ -118,19 +161,27 @@ router.post('/executar-exclusoes', async (req, res) => {
       deletionRequested:    true,
       deletionScheduledFor: { $lte: agora }
     });
+
     let excluidos = 0;
+    const erros   = [];
+
     for (const user of usuarios) {
-      const uid = user._id;
-      try { await mongoose.model('Client').deleteMany({ userId: uid }); }  catch(e) {}
-      try { await mongoose.model('Event').deleteMany({ userId: uid }); }   catch(e) {}
-      await AccessLog.deleteMany({ userId: uid });
-      await User.findByIdAndDelete(uid);
-      excluidos++;
+      try {
+        await excluirUsuarioCompleto(user._id);
+        excluidos++;
+      } catch(e) {
+        erros.push({ userId: user._id, erro: e.message });
+      }
     }
-    res.json({ message: `${excluidos} conta(s) excluída(s).` });
+
+    res.json({
+      message:  `${excluidos} conta(s) excluída(s).`,
+      erros:    erros.length ? erros : undefined
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
 module.exports = router;
+module.exports.excluirUsuarioCompleto = excluirUsuarioCompleto;
