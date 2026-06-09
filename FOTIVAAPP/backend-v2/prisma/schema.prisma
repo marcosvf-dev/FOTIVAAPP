@@ -1,0 +1,407 @@
+// Fotiva — Backend v2
+// PostgreSQL via Supabase + Prisma ORM
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─── ENUMS ────────────────────────────────────────────────────────────────────
+
+enum SubscriptionPlan {
+  free
+  starter
+  normal
+  pro
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  expired
+  cancelled
+}
+
+enum EventStatus {
+  orcamento
+  contrato_enviado
+  sinal_recebido
+  confirmado
+  realizado
+  fotos_entregues
+  concluido
+  cancelado
+}
+
+enum PaymentType {
+  dinheiro
+  pix
+  transferencia
+  credito
+  debito
+}
+
+enum EquipmentCategory {
+  camera
+  lente
+  iluminacao
+  audio
+  acessorio
+  outro
+}
+
+enum CouponType {
+  percent
+  fixed
+}
+
+enum GalleryStatus {
+  active
+  closed
+}
+
+// ─── USER ────────────────────────────────────────────────────────────────────
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  passwordHash  String
+  studioName    String   @default("")
+  phone         String   @default("")
+  profileImage  String   @default("")
+  studioLogo    String   @default("")
+  document      String   @default("")
+  isAdmin       Boolean  @default(false)
+  tokenVersion  Int      @default(0)
+
+  resetPasswordToken   String?   @unique
+  resetPasswordExpires DateTime?
+  contractCounter      Int       @default(0)
+  oneSignalPlayerId    String?
+  pushSubscription     Json?
+  whatsappPhone        String    @default("")
+  whatsappApiKey       String    @default("")
+
+  // Subscription (inline — não precisa de tabela separada)
+  subPlan             SubscriptionPlan   @default(free)
+  subStatus           SubscriptionStatus @default(trial)
+  subTrialEndsAt      DateTime           @default(dbgenerated("NOW() + INTERVAL '7 days'"))
+  subExpiresAt        DateTime?
+  stripeCustomerId    String?            @unique
+  stripeSubId         String?            @unique
+  subLastPayment      DateTime?
+
+  // LGPD
+  consentAcceptedAt    DateTime?
+  consentVersion       String?
+  deletionRequested    Boolean   @default(false)
+  deletionRequestedAt  DateTime?
+  deletionScheduledFor DateTime?
+  deletionMotivo       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  clients      Client[]
+  events       Event[]
+  galleries    Gallery[]
+  equipments   Equipment[]
+  settings     UserSettings?
+  expenses     Expense[]
+  accessLogs   AccessLog[]
+  couponUses   CouponUse[]
+  pushSubs     PushSubscription[]
+
+  @@index([email])
+  @@index([stripeCustomerId])
+  @@index([subStatus])
+  @@index([deletionRequested, deletionScheduledFor])
+  @@index([resetPasswordToken])
+}
+
+// ─── CLIENT ──────────────────────────────────────────────────────────────────
+
+model Client {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name       String
+  nameNorm   String   @default("")
+  phone      String   @default("")
+  email      String   @default("")
+  cpf        String   @default("")
+  address    String   @default("")
+  city       String   @default("")
+  state      String   @default("")
+  complement String   @default("")
+  notes      String   @default("")
+  birthdate  DateTime?
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  events     Event[]
+
+  @@index([userId, name])
+  @@index([userId, email])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ─── EVENT ───────────────────────────────────────────────────────────────────
+
+model Event {
+  id          String      @id @default(uuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clientId    String
+  client      Client      @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  clientName  String      @default("")
+  clientEmail String      @default("")
+  eventType   String
+  eventDate   DateTime?
+  location    String      @default("")
+  status      EventStatus @default(confirmado)
+  notes       String      @default("")
+  archived    Boolean     @default(false)
+
+  totalValue   Float @default(0)
+  amountPaid   Float @default(0)
+  installments Int   @default(1)
+  paymentType  PaymentType @default(pix)
+  dueDay       Int?
+  firstDueDate DateTime?
+
+  // Contrato
+  contractNumber    String?
+  contractSignature String?
+  contractSignedAt  DateTime?
+  signedByClient    Boolean  @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  installmentList Installment[]
+  statusHistory   EventStatusHistory[]
+
+  @@index([userId, eventDate])
+  @@index([userId, status])
+  @@index([userId, archived])
+  @@index([userId, createdAt(sort: Desc)])
+}
+
+// ─── INSTALLMENT ─────────────────────────────────────────────────────────────
+
+model Installment {
+  id      String  @id @default(uuid())
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  number  Int
+  total   Int
+  value   Float
+  dueDate DateTime
+  paid    Boolean   @default(false)
+  paidAt  DateTime?
+
+  @@index([eventId])
+  @@index([paid, dueDate])
+}
+
+// ─── EVENT STATUS HISTORY ────────────────────────────────────────────────────
+
+model EventStatusHistory {
+  id        String      @id @default(uuid())
+  eventId   String
+  event     Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  status    EventStatus
+  changedAt DateTime    @default(now())
+  note      String      @default("")
+
+  @@index([eventId])
+}
+
+// ─── GALLERY ─────────────────────────────────────────────────────────────────
+
+model Gallery {
+  id          String        @id @default(uuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title            String
+  description      String        @default("")
+  clientName       String
+  clientEmail      String
+  password         String        // bcrypt hash
+  status           GalleryStatus @default(active)
+
+  faceEnabled      Boolean @default(false)
+  downloadEnabled  Boolean @default(false)
+  downloadLimit    Int?
+  extraPhotoPrice  Float   @default(0)
+  watermarkEnabled Boolean @default(false)
+  watermarkText    String  @default("")
+  downloadCount    Int     @default(0)
+
+  selectionSentAt  DateTime?
+  expiresAt        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  photos GalleryPhoto[]
+
+  @@index([userId])
+}
+
+// ─── GALLERY PHOTO ───────────────────────────────────────────────────────────
+
+model GalleryPhoto {
+  id           String   @id @default(uuid())
+  galleryId    String
+  gallery      Gallery  @relation(fields: [galleryId], references: [id], onDelete: Cascade)
+
+  filename     String   @default("")
+  originalKey  String   @default("")  // chave no R2
+  size         Int      @default(0)
+  width        Int      @default(0)
+  height       Int      @default(0)
+  selected     Boolean  @default(false)
+  downloaded   Boolean  @default(false)
+  uploadedAt   DateTime @default(now())
+
+  @@index([galleryId])
+}
+
+// ─── EQUIPMENT ───────────────────────────────────────────────────────────────
+
+model Equipment {
+  id          String            @id @default(uuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  name        String
+  buyValue    Float
+  usageMonths Int
+  category    EquipmentCategory @default(outro)
+  notes       String            @default("")
+
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId])
+}
+
+// ─── USER SETTINGS ───────────────────────────────────────────────────────────
+
+model UserSettings {
+  id            String @id @default(uuid())
+  userId        String @unique
+  user          User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  hourlyRate    Float  @default(38)
+  editingRate   Float  @default(28)
+  kmRate        Float  @default(1.5)
+  monthlyEvents Int    @default(4)
+  defaultMargin Float  @default(40)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ─── EXPENSE ─────────────────────────────────────────────────────────────────
+
+model Expense {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  description String
+  amount      Float
+  category    String   @default("Outro")
+  date        DateTime @default(now())
+  eventId     String?
+  notes       String   @default("")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, date])
+}
+
+// ─── COUPON ──────────────────────────────────────────────────────────────────
+
+model Coupon {
+  id          String     @id @default(uuid())
+  code        String     @unique
+  description String     @default("")
+  type        CouponType @default(percent)
+  value       Float
+  maxUses     Int?
+  usedCount   Int        @default(0)
+  validUntil  DateTime?
+  plans       String[]   @default(["normal","pro"])
+  active      Boolean    @default(true)
+
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  uses        CouponUse[]
+}
+
+// ─── COUPON USE ──────────────────────────────────────────────────────────────
+
+model CouponUse {
+  id       String   @id @default(uuid())
+  couponId String
+  coupon   Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usedAt   DateTime @default(now())
+
+  @@unique([couponId, userId])
+  @@index([couponId])
+  @@index([userId])
+}
+
+// ─── ACCESS LOG ──────────────────────────────────────────────────────────────
+
+model AccessLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userEmail  String?
+  method     String
+  route      String
+  ip         String?
+  userAgent  String?
+  statusCode Int
+  duration   Int
+  timestamp  DateTime @default(now())
+
+  @@index([userId])
+  @@index([timestamp])
+}
+
+// ─── PUSH SUBSCRIPTION ───────────────────────────────────────────────────────
+
+model PushSubscription {
+  id       String @id @default(uuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint String @unique
+  p256dh   String
+  auth     String
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
