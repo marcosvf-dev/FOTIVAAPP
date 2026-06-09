@@ -98,7 +98,7 @@ export default function Login() {
 
               <p style={{ textAlign:'center', marginTop:20, color:'#555', fontSize:13 }}>
                 Não tem conta?{' '}
-                <Link to="/cadastro" style={{ color:'#E87722', fontWeight:600, textDecoration:'none' }}>Criar conta grátis</Link>
+                <Link to="/register" style={{ color:'#E87722', fontWeight:600, textDecoration:'none' }}>Criar conta grátis</Link>
               </p>
             </>
           ) : (
