@@ -11,17 +11,31 @@ router.get('/status', async (req, res) => {
     where:  { id: req.user.id },
     select: { subPlan: true, subStatus: true, subTrialEndsAt: true, subExpiresAt: true, stripeCustomerId: true, stripeSubId: true }
   });
-  res.json(user);
+  res.json({
+    plan:             user.subPlan,
+    status:           user.subStatus,
+    trialEndsAt:      user.subTrialEndsAt,
+    expiresAt:        user.subExpiresAt,
+    stripeCustomerId: user.stripeCustomerId,
+    stripeSubId:      user.stripeSubId,
+  });
 });
 
-// POST /api/subscription/checkout
-router.post('/checkout', async (req, res) => {
+// POST /api/subscription/create (compatibilidade com frontend)
+// POST /api/subscription/checkout (novo nome)
+async function handleCheckout(req, res) {
   const { plan, couponCode } = req.body;
-  if (!['normal','pro'].includes(plan)) return res.status(400).json({ error: 'Plano inválido.' });
+  if (!['normal','pro','starter'].includes(plan)) return res.status(400).json({ error: 'Plano inválido.' });
 
-  const priceId = plan === 'pro' ? process.env.STRIPE_PRICE_PRO : process.env.STRIPE_PRICE_NORMAL;
+  const priceMap = {
+    starter: process.env.STRIPE_PRICE_STARTER,
+    normal:  process.env.STRIPE_PRICE_NORMAL,
+    pro:     process.env.STRIPE_PRICE_PRO,
+  };
+  const priceId = priceMap[plan];
+  if (!priceId) return res.status(400).json({ error: `Preço não configurado para o plano ${plan}.` });
+
   let customerId = req.user.stripeCustomerId;
-
   if (!customerId) {
     const customer = await stripe.customers.create({ email: req.user.email, name: req.user.name });
     customerId = customer.id;
@@ -49,17 +63,20 @@ router.post('/checkout', async (req, res) => {
   }
 
   const session = await stripe.checkout.sessions.create({
-    customer:   customerId,
-    mode:       'subscription',
-    line_items: [{ price: priceId, quantity: 1 }],
-    discounts:  discounts.length ? discounts : undefined,
+    customer:    customerId,
+    mode:        'subscription',
+    line_items:  [{ price: priceId, quantity: 1 }],
+    discounts:   discounts.length ? discounts : undefined,
     success_url: `${process.env.FRONTEND_URL}/assinatura?success=true`,
     cancel_url:  `${process.env.FRONTEND_URL}/assinatura?cancelled=true`,
-    metadata:   { userId: req.user.id, plan },
+    metadata:    { userId: req.user.id, plan },
   });
 
   res.json({ url: session.url });
-});
+}
+
+router.post('/create',   handleCheckout);
+router.post('/checkout', handleCheckout);
 
 // POST /api/subscription/portal
 router.post('/portal', async (req, res) => {
