@@ -50,7 +50,7 @@ export default function Assinatura() {
     try {
       const { data } = await api.post('/api/coupons/validate', { code: couponCode.trim(), plan });
       setCouponData(data);
-      toast.success('Cupom aplicado! ' + data.label);
+      toast.success('Cupom aplicado!');
     } catch (e) {
       setCouponError(e.response?.data?.error || 'Cupom inválido');
     }
@@ -66,9 +66,12 @@ export default function Assinatura() {
       const { data } = await api.post('/api/subscription/create', {
         plan, couponCode: couponData ? couponCode.trim() : undefined,
       });
-      window.location.href = data.checkoutUrl;
+      // Compatibilidade: backend pode retornar url ou checkoutUrl
+      const url = data.url || data.checkoutUrl;
+      if (!url) throw new Error('URL de checkout não recebida');
+      window.location.href = url;
     } catch (e) {
-      toast.error(e.response?.data?.error || 'Erro ao criar checkout');
+      toast.error(e.response?.data?.error || e.message || 'Erro ao criar checkout');
       setLoading(null);
     }
   };
@@ -77,8 +80,12 @@ export default function Assinatura() {
     setPortalLoading(true);
     try {
       const { data } = await api.post('/api/subscription/portal');
-      window.location.href = data.portalUrl;
-    } catch { setPortalLoading(false); }
+      const url = data.url || data.portalUrl;
+      if (!url) throw new Error('URL do portal não recebida');
+      window.location.href = url;
+    } catch {
+      setPortalLoading(false);
+    }
   };
 
   const getBtnStyle = (p) => {
@@ -86,6 +93,9 @@ export default function Assinatura() {
     if (p.id === 'pro')    return { background: 'linear-gradient(135deg,#7C3AED,#4C1D95)', color: '#fff', border: 'none' };
     return { background: 'transparent', border: '1px solid rgba(255,255,255,.12)', color: '#C8C8C8' };
   };
+
+  // Usuário com plano ativo pode trocar de plano — não bloqueia os botões
+  const isActive = status?.status === 'active';
 
   return (
     <div style={{ minHeight:'100vh', background:'#080808', padding:'40px 20px', fontFamily:'Inter,sans-serif' }}>
@@ -108,7 +118,7 @@ export default function Assinatura() {
             </div>
           )}
 
-          {status?.status === 'active' && (
+          {isActive && (
             <div style={{ marginTop:14 }}>
               <div style={{ display:'inline-flex', alignItems:'center', gap:8, background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.2)', borderRadius:10, padding:'8px 16px', marginBottom:10 }}>
                 <Check size={14} color="#22C55E"/>
@@ -138,7 +148,11 @@ export default function Assinatura() {
                 onKeyDown={e => e.key==='Enter' && validateCoupon()}
                 placeholder="Ex: FOTIVA50"
                 style={inp({ border:`1px solid ${couponData?'rgba(34,197,94,.4)':couponError?'rgba(239,68,68,.4)':'rgba(255,255,255,.08)'}`, letterSpacing:1, textTransform:'uppercase' })}/>
-              {couponData && <button onClick={clearCoupon} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#555' }}><X size={15}/></button>}
+              {couponData && (
+                <button onClick={clearCoupon} style={{ position:'absolute', right:10, top:'50%', transform:'translateY(-50%)', background:'none', border:'none', cursor:'pointer', color:'#555' }}>
+                  <X size={15}/>
+                </button>
+              )}
             </div>
             <button onClick={() => validateCoupon()} disabled={!couponCode.trim()||couponLoading}
               style={{ padding:'10px 18px', borderRadius:9, background:'rgba(232,119,34,.15)', border:'1px solid rgba(232,119,34,.3)', color:'#E87722', fontSize:13, fontWeight:700, cursor:'pointer', fontFamily:'inherit', opacity:!couponCode.trim()||couponLoading?.5:1 }}>
@@ -148,7 +162,9 @@ export default function Assinatura() {
           {couponData && (
             <div style={{ display:'flex', alignItems:'center', gap:8, marginTop:10, background:'rgba(34,197,94,.08)', border:'1px solid rgba(34,197,94,.2)', borderRadius:9, padding:'8px 12px' }}>
               <Check size={14} color="#22C55E"/>
-              <span style={{ color:'#22C55E', fontSize:13, fontWeight:600 }}>{couponData.label} — de R${couponData.originalPrice?.toFixed(2)} por R${couponData.finalPrice?.toFixed(2)}/mês</span>
+              <span style={{ color:'#22C55E', fontSize:13, fontWeight:600 }}>
+                {couponData.type === 'percent' ? `${couponData.value}% de desconto` : `R$${couponData.value?.toFixed(2)} de desconto`}
+              </span>
             </div>
           )}
           {couponError && (
@@ -162,8 +178,13 @@ export default function Assinatura() {
         {/* PLANOS */}
         <div style={{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:18, marginBottom:36 }}>
           {PLANS.map(p => {
-            const finalPrice  = couponData?.finalPrice;
-            const hasDiscount = finalPrice && finalPrice < p.price;
+            const finalPrice  = couponData?.type === 'percent'
+              ? p.price * (1 - couponData.value / 100)
+              : couponData?.type === 'fixed'
+              ? Math.max(0, p.price - couponData.value)
+              : null;
+            const hasDiscount = finalPrice !== null && finalPrice < p.price;
+
             return (
               <div key={p.id} style={{ background:'#111', border: p.popular ? '2px solid #E87722' : p.id==='pro' ? '1px solid rgba(124,58,237,.3)' : '1px solid rgba(255,255,255,.07)', borderRadius:20, padding:26, position:'relative', display:'flex', flexDirection:'column' }}>
                 {p.popular && <div style={{ position:'absolute', top:-13, left:'50%', transform:'translateX(-50%)', background:'linear-gradient(135deg,#E87722,#C85A00)', color:'#fff', fontSize:10, fontWeight:700, padding:'3px 16px', borderRadius:20, whiteSpace:'nowrap' }}>⭐ Mais popular</div>}
@@ -179,7 +200,9 @@ export default function Assinatura() {
                       </div>
                       <div style={{ display:'flex', alignItems:'center', gap:5, marginTop:3 }}>
                         <span style={{ color:'#444', fontSize:12, textDecoration:'line-through' }}>R${p.price.toFixed(2)}</span>
-                        <span style={{ background:`rgba(${p.color},.1)`, color:`rgb(${p.color})`, fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:5 }}>{couponData.label}</span>
+                        <span style={{ background:`rgba(${p.color},.1)`, color:`rgb(${p.color})`, fontSize:9, fontWeight:700, padding:'2px 6px', borderRadius:5 }}>
+                          {couponData?.type === 'percent' ? `-${couponData.value}%` : `-R$${couponData?.value?.toFixed(2)}`}
+                        </span>
                       </div>
                     </div>
                   ) : (
