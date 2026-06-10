@@ -11,13 +11,26 @@ router.get('/status', async (req, res) => {
     where:  { id: req.user.id },
     select: { subPlan: true, subStatus: true, subTrialEndsAt: true, subExpiresAt: true, stripeCustomerId: true, stripeSubId: true }
   });
+
+  // Calcula dias restantes do trial
+  const now          = new Date();
+  const trialEndsAt  = new Date(user.subTrialEndsAt);
+  const trialDaysLeft = Math.max(0, Math.ceil((trialEndsAt - now) / (1000 * 60 * 60 * 24)));
+
   res.json({
+    // Campos no formato que o frontend espera
     plan:             user.subPlan,
     status:           user.subStatus,
     trialEndsAt:      user.subTrialEndsAt,
+    trialDaysLeft,
     expiresAt:        user.subExpiresAt,
     stripeCustomerId: user.stripeCustomerId,
     stripeSubId:      user.stripeSubId,
+    // Campos com prefixo sub (compatibilidade)
+    subPlan:          user.subPlan,
+    subStatus:        user.subStatus,
+    subTrialEndsAt:   user.subTrialEndsAt,
+    subExpiresAt:     user.subExpiresAt,
   });
 });
 
