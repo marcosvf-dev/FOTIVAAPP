@@ -12,8 +12,9 @@ router.post('/stripe', async (req, res) => {
   }
 
   const planFromPriceId = (priceId) => {
-    if (priceId === process.env.STRIPE_PRICE_PRO)    return 'pro';
-    if (priceId === process.env.STRIPE_PRICE_NORMAL) return 'normal';
+    if (priceId === process.env.STRIPE_PRICE_PRO)     return 'pro';
+    if (priceId === process.env.STRIPE_PRICE_NORMAL)  return 'normal';
+    if (priceId === process.env.STRIPE_PRICE_STARTER) return 'starter';
     return 'normal';
   };
 
