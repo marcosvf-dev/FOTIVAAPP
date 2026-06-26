@@ -65,6 +65,15 @@ app.use('/api/lgpd',         require('./routes/lgpd'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '2.0.0', time: new Date() }));
 
+app.get('/api/health/db', async (_, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.status(200).json({ status: 'ok', database: 'connected', time: new Date() });
+  } catch (error) {
+    res.status(500).json({ status: 'error', database: 'disconnected', error: error.message });
+  }
+});
+
 // Cron: expira assinaturas vencidas todo dia às 2h
 cron.schedule('0 2 * * *', async () => {
   const result = await prisma.user.updateMany({
