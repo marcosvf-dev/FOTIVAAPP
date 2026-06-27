@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Toaster } from 'sonner';
  
@@ -49,12 +49,12 @@ class ErrorBoundary extends React.Component {
           alignItems:'center', justifyContent:'center', flexDirection:'column',
           gap:20, padding:24, fontFamily:'Inter, sans-serif'
         }}>
-          <div style={{ fontSize:48 }}>⚠️</div>
+          <div style={{ fontSize:48 }}>âš ï¸</div>
           <div style={{ color:'#fff', fontSize:20, fontWeight:700, textAlign:'center' }}>
             Algo deu errado
           </div>
           <div style={{ color:'#666', fontSize:14, textAlign:'center', maxWidth:400 }}>
-            Ocorreu um erro inesperado. Tente recarregar a página.
+            Ocorreu um erro inesperado. Tente recarregar a pÃ¡gina.
           </div>
           <div style={{ display:'flex', gap:12 }}>
             <button onClick={() => window.location.reload()}
@@ -64,7 +64,7 @@ class ErrorBoundary extends React.Component {
                 color:'#fff', border:'none', fontSize:14, fontWeight:700,
                 cursor:'pointer', fontFamily:'inherit'
               }}>
-              🔄 Recarregar
+              ðŸ”„ Recarregar
             </button>
             <button onClick={() => { this.setState({ hasError:false }); window.location.href='/dashboard'; }}
               style={{
@@ -73,7 +73,7 @@ class ErrorBoundary extends React.Component {
                 border:'1px solid rgba(255,255,255,.1)',
                 fontSize:14, fontWeight:600, cursor:'pointer', fontFamily:'inherit'
               }}>
-              🏠 Ir para o início
+              ðŸ  Ir para o inÃ­cio
             </button>
           </div>
           {process.env.NODE_ENV === 'development' && this.state.error && (
@@ -101,9 +101,8 @@ function Private({ children, requireSub = true }) {
   );
   if (!user) return <Navigate to="/login" replace />;
   if (requireSub) {
-    const s   = user.subscription;
     const now = new Date();
-    const active = s?.status==='active' || (s?.status==='trial' && new Date(s?.trialEndsAt) > now);
+    const active = user.subStatus === 'active' || (user.subStatus === 'trial' && new Date(user.subTrialEndsAt) > now);
     if (!active) return <Navigate to="/assinatura" replace />;
   }
   return children;
@@ -152,3 +151,4 @@ export default function App() {
     </ErrorBoundary>
   );
 }
+
