@@ -1,4 +1,4 @@
-const router  = require('express').Router();
+﻿const router  = require('express').Router();
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const prisma  = require('../lib/prisma');
@@ -13,7 +13,7 @@ const sign = (user) => jwt.sign(
 // POST /api/auth/register
 router.post('/register', async (req, res) => {
   const { name, email, password, studioName, phone } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ error: 'Nome, email e senha são obrigatórios.' });
+  if (!name || !email || !password) return res.status(400).json({ error: 'Nome, email e senha sÃ£o obrigatÃ³rios.' });
   if (password.length < 6) return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres.' });
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -36,13 +36,23 @@ router.post('/register', async (req, res) => {
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  if (!email || !password) return res.status(400).json({ error: 'Email e senha são obrigatórios.' });
+  if (!email || !password) return res.status(400).json({ error: 'Email e senha sÃ£o obrigatÃ³rios.' });
 
-  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  const user = await prisma.user.findUnique({
+    where: { email: email.toLowerCase().trim() },
+    select: {
+      id: true, name: true, email: true, isAdmin: true,
+      studioName: true, phone: true, profileImage: true, studioLogo: true,
+      subPlan: true, subStatus: true, subTrialEndsAt: true, subExpiresAt: true,
+      stripeCustomerId: true, createdAt: true,
+      passwordHash: true, tokenVersion: true,
+    }
+  });
   if (!user || !(await bcrypt.compare(password, user.passwordHash)))
     return res.status(401).json({ error: 'Email ou senha incorretos.' });
 
-  res.json({ token: sign(user), user: { id: user.id, name: user.name, email: user.email, isAdmin: user.isAdmin } });
+  const { passwordHash, tokenVersion, ...userPublic } = user;
+  res.json({ token: sign(user), user: userPublic });
 });
 
 // GET /api/auth/me
@@ -73,8 +83,8 @@ router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   const user = await prisma.user.findUnique({ where: { email: email?.toLowerCase().trim() } });
 
-  // Sempre retorna 200 para não revelar se o email existe
-  if (!user) return res.json({ message: 'Se o email existir, você receberá as instruções.' });
+  // Sempre retorna 200 para nÃ£o revelar se o email existe
+  if (!user) return res.json({ message: 'Se o email existir, vocÃª receberÃ¡ as instruÃ§Ãµes.' });
 
   const token   = require('crypto').randomBytes(32).toString('hex');
   const expires = new Date(Date.now() + 60 * 60 * 1000); // 1h
@@ -94,27 +104,27 @@ router.post('/forgot-password', async (req, res) => {
     await transporter.sendMail({
       from:    `"Fotiva" <${process.env.SMTP_USER}>`,
       to:      user.email,
-      subject: 'Redefinição de senha — Fotiva',
-      html:    `<p>Clique no link para redefinir sua senha (válido por 1 hora):</p>
+      subject: 'RedefiniÃ§Ã£o de senha â€” Fotiva',
+      html:    `<p>Clique no link para redefinir sua senha (vÃ¡lido por 1 hora):</p>
                 <a href="${process.env.FRONTEND_URL}/reset-password?token=${token}">Redefinir senha</a>`
     });
   } catch (e) {
     console.error('Erro ao enviar email:', e.message);
   }
 
-  res.json({ message: 'Se o email existir, você receberá as instruções.' });
+  res.json({ message: 'Se o email existir, vocÃª receberÃ¡ as instruÃ§Ãµes.' });
 });
 
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   const { token, password } = req.body;
-  if (!token || !password) return res.status(400).json({ error: 'Token e senha são obrigatórios.' });
+  if (!token || !password) return res.status(400).json({ error: 'Token e senha sÃ£o obrigatÃ³rios.' });
   if (password.length < 6) return res.status(400).json({ error: 'Senha deve ter ao menos 6 caracteres.' });
 
   const user = await prisma.user.findFirst({
     where: { resetPasswordToken: token, resetPasswordExpires: { gt: new Date() } }
   });
-  if (!user) return res.status(400).json({ error: 'Token inválido ou expirado.' });
+  if (!user) return res.status(400).json({ error: 'Token invÃ¡lido ou expirado.' });
 
   await prisma.user.update({
     where: { id: user.id },
