@@ -1,4 +1,4 @@
-require('express-async-errors');
+﻿require('express-async-errors');
 require('dotenv').config();
 
 const express    = require('express');
@@ -62,6 +62,7 @@ app.use('/api/webhook',      require('./routes/webhook'));
 app.use('/api/admin',        require('./routes/admin'));
 app.use('/api/coupons',      require('./routes/coupons'));
 app.use('/api/lgpd',         require('./routes/lgpd'));
+app.use('/api/notifications', require('./routes/notifications'));
 
 app.get('/api/health', (_, res) => res.json({ status: 'ok', version: '2.0.0', time: new Date() }));
 
@@ -74,22 +75,22 @@ app.get('/api/health/db', async (_, res) => {
   }
 });
 
-// Cron: expira assinaturas vencidas todo dia às 2h
+// Cron: expira assinaturas vencidas todo dia Ã s 2h
 cron.schedule('0 2 * * *', async () => {
   const result = await prisma.user.updateMany({
     where: { subStatus: 'active', subExpiresAt: { lt: new Date() } },
     data:  { subStatus: 'expired', subPlan: 'free' },
   });
-  if (result.count > 0) console.log(`⏰ ${result.count} assinaturas expiradas`);
+  if (result.count > 0) console.log(`â° ${result.count} assinaturas expiradas`);
 });
 
-// Cron: limpa tokens de reset expirados todo dia às 4h
+// Cron: limpa tokens de reset expirados todo dia Ã s 4h
 cron.schedule('0 4 * * *', async () => {
   const result = await prisma.user.updateMany({
     where: { resetPasswordExpires: { lt: new Date() }, NOT: { resetPasswordToken: null } },
     data:  { resetPasswordToken: null, resetPasswordExpires: null },
   });
-  if (result.count > 0) console.log(`🧹 ${result.count} tokens de reset limpos`);
+  if (result.count > 0) console.log(`ðŸ§¹ ${result.count} tokens de reset limpos`);
 });
 
 // Error handler
@@ -97,11 +98,12 @@ app.use((err, req, res, next) => {
   console.error('Erro:', err.message);
   if (err.code === 'P2002') {
     const field = err.meta?.target?.[0] || 'campo';
-    return res.status(400).json({ error: `${field} já está em uso.` });
+    return res.status(400).json({ error: `${field} jÃ¡ estÃ¡ em uso.` });
   }
-  if (err.code === 'P2025') return res.status(404).json({ error: 'Registro não encontrado.' });
+  if (err.code === 'P2025') return res.status(404).json({ error: 'Registro nÃ£o encontrado.' });
   res.status(err.status || 500).json({ error: err.message || 'Erro interno' });
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`🚀 Fotiva API v2.0 na porta ${PORT}`));
+app.listen(PORT, () => console.log(`ðŸš€ Fotiva API v2.0 na porta ${PORT}`));
+
